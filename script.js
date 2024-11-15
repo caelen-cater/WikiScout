@@ -36,6 +36,23 @@ function init() {
   animate();
 };
 
+document.addEventListener('DOMContentLoaded', function() {
+  const authLink = document.getElementById('auth-link');
+  const triggerButton = document.getElementById('trigger');
+  if (document.cookie.split(';').some((item) => item.trim().startsWith('auth='))) {
+    authLink.textContent = 'Dashboard';
+    authLink.href = './scout';
+    triggerButton.textContent = 'Dashboard';
+    triggerButton.href = './scout';
+  } else {
+    authLink.textContent = 'Login';
+    authLink.href = './login';
+    triggerButton.textContent = 'Get Started';
+    triggerButton.href = './login';
+  }
+  initScene(); // Ensure the scene is initialized
+});
+
 function initScene() {
   onResize();
   scene = new THREE.Scene();
