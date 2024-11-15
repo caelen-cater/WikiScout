@@ -1,0 +1,1 @@
+// Add scout to your team
