@@ -1,1 +1,0 @@
-// Delete scout off your team
