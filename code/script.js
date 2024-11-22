@@ -1,0 +1,129 @@
+const form = document.querySelector('form')
+const inputs = form.querySelectorAll('input')
+const KEYBOARDS = {
+  backspace: 8,
+  arrowLeft: 37,
+  arrowRight: 39,
+}
+
+function handleInput(e) {
+  const input = e.target
+  const nextInput = input.nextElementSibling
+  if (nextInput && input.value) {
+    nextInput.focus()
+    if (nextInput.value) {
+      nextInput.select()
+    }
+  }
+}
+
+function handlePaste(e) {
+  e.preventDefault()
+  const paste = e.clipboardData.getData('text')
+  inputs.forEach((input, i) => {
+    input.value = paste[i] || ''
+  })
+}
+
+function handleBackspace(e) { 
+  const input = e.target
+  if (input.value) {
+    input.value = ''
+    return
+  }
+  
+  input.previousElementSibling.focus()
+}
+
+function handleArrowLeft(e) {
+  const previousInput = e.target.previousElementSibling
+  if (!previousInput) return
+  previousInput.focus()
+}
+
+function handleArrowRight(e) {
+  const nextInput = e.target.nextElementSibling
+  if (!nextInput) return
+  nextInput.focus()
+}
+
+function isMobile() {
+  return /Mobi|Android/i.test(navigator.userAgent);
+}
+
+if (isMobile()) {
+  document.documentElement.classList.add('mobile');
+}
+
+form.addEventListener('input', handleInput)
+inputs[0].addEventListener('paste', handlePaste)
+
+inputs.forEach(input => {
+  input.addEventListener('focus', e => {
+    setTimeout(() => {
+      e.target.select()
+    }, 0)
+  })
+  
+  input.addEventListener('keydown', e => {
+    switch(e.keyCode) {
+      case KEYBOARDS.backspace:
+        handleBackspace(e)
+        break
+      case KEYBOARDS.arrowLeft:
+        handleArrowLeft(e)
+        break
+      case KEYBOARDS.arrowRight:
+        handleArrowRight(e)
+        break
+      default:  
+    }
+  })
+})
+
+let isSubmitting = false;
+
+form.addEventListener('submit', handleSubmit)
+
+function handleSubmit(e) {
+  e.preventDefault()
+  if (isSubmitting) return
+
+  isSubmitting = true
+  const otp = Array.from(inputs).map(input => input.value).join('')
+  const submitButton = form.querySelector('button[type="submit"]')
+  submitButton.disabled = true
+  submitButton.textContent = 'Loading...'
+
+  fetch('auth/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: `otp=${otp}`
+  })
+  .then(response => {
+    if (response.status === 200) {
+      window.location.href = '../../'
+    } else if (response.status === 401) {
+      alert('Invalid code')
+      submitButton.disabled = false
+      submitButton.textContent = 'Login'
+      isSubmitting = false
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error)
+    submitButton.disabled = false
+    submitButton.textContent = 'Login'
+    isSubmitting = false
+  })
+}
+
+inputs.forEach(input => {
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      handleSubmit(e)
+    }
+  })
+})
