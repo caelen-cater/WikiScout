@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scout Data Submission</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+</head>
+<body>
+    <form id="scoutForm">
+        <label for="team_number">Team Number:</label>
+        <input type="text" id="team_number" name="team_number" required><br><br>
+
+        <input type="hidden" id="event_id" name="event_id" value="USMNSAQ1">
+
+        <label for="drive_train">Mecanum Drive Train:</label>
+        <input type="checkbox" id="drive_train" name="drive_train"><br><br>
+
+        <label for="driver_practice">Driver Practice:</label>
+        <input type="range" id="driver_practice" name="driver_practice" min="0" max="2"><br><br>
+
+        <label for="high_basket">High Basket:</label>
+        <input type="checkbox" id="high_basket" name="high_basket"><br><br>
+
+        <label for="high_chamber">High Chamber:</label>
+        <input type="checkbox" id="high_chamber" name="high_chamber"><br><br>
+
+        <label for="hang">Hang:</label>
+        <input type="checkbox" id="hang" name="hang"><br><br>
+
+        <label for="autopoints">Auto Points:</label>
+        <input type="number" id="autopoints" name="autopoints"><br><br>
+
+        <label for="extra_data">Extra Data:</label><br>
+        <textarea id="extra_data" name="extra_data" rows="4" cols="50"></textarea><br><br>
+
+        <button type="submit">Submit</button>
+    </form>
+
+    <h2>Current Data</h2>
+    <pre id="dataTable"></pre>
+
+    <script>
+        document.getElementById('scoutForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+
+            const formData = new FormData(this);
+            const data = new URLSearchParams();
+            const answers = [
+                formData.get('drive_train') ? 'true' : 'false',
+                formData.get('driver_practice'),
+                formData.get('high_basket') ? 'true' : 'false',
+                formData.get('high_chamber') ? 'true' : 'false',
+                formData.get('hang') ? 'true' : 'false',
+                formData.get('autopoints'),
+                formData.get('extra_data')
+            ].join('|');
+
+            data.append('team_number', formData.get('team_number'));
+            data.append('event_id', formData.get('event_id'));
+            data.append('data', answers);
+
+            fetch('./add/', {
+                method: 'POST',
+                body: data,
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                }
+            })
+            .then(response => {
+                if (response.ok) {
+                    window.location.reload();
+                } else {
+                    return response.json().then(error => {
+                        alert('Error: ' + error.error);
+                    });
+                }
+            })
+            .catch(error => {
+                alert('Error: ' + error.message);
+            });
+        });
+
+        function loadData() {
+            fetch('./view/?event_id=USMNSAQ1')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('dataTable').textContent = data.table;
+                })
+                .catch(error => {
+                    console.error('Error fetching data:', error);
+                });
+        }
+
+        window.onload = loadData;
+    </script>
+</body>
+</html>
