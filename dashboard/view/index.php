@@ -1,5 +1,5 @@
 <?php
-require_once '../../secrets.php';
+require_once '../../config.php';
 
 header('Content-Type: application/json');
 header('Cache-Control: no-cache, no-store, must-revalidate');
@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 $eventId = $_GET['event_id'] ?? 'USMNSAQ1';
 $season = date("Y");
 
-$dbUrl = "https://api.cirrus.center/v2/data/database/?db=WikiScout-$season-$eventId";
+$dbUrl = "https://$server/v2/data/database/?db=WikiScout-$season-$eventId";
 $dbHeaders = [
     "Authorization: Bearer $apikey"
 ];

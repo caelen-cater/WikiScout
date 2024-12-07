@@ -1,12 +1,12 @@
 <?php
-require_once '../../secrets.php';
+require_once '../../config.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $otp = $_POST['otp'];
     $apikey = $apikey;
 
     // Step 1: Get token
-    $otpUrl = "https://api.cirrus.center/v2/data/database/?db=WikiScout&log=OTP&entry=" . urlencode($otp);
+    $otpUrl = $server . "/v2/data/database/?db=WikiScout&log=OTP&entry=" . urlencode($otp);
     $otpOptions = [
         "http" => [
             "header" => "Authorization: Bearer " . $apikey
@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $token = $otpData['data'];
 
         // Step 2: Authenticate user with token
-        $authUrl = "https://api.cirrus.center/v2/auth/user/";
+        $authUrl = $server . "/v2/auth/user/";
         $authOptions = [
             "http" => [
                 "header" => "Authorization: Bearer " . $apikey . "\r\n" .

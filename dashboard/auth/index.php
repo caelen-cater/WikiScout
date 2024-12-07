@@ -1,5 +1,5 @@
 <?php
-require_once '../../secrets.php';
+require_once '../../config.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     if (!isset($_COOKIE['auth'])) {
@@ -12,7 +12,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $apikey = $apikey;
 
     // Initial user auth API call
-    $authUrl = 'https://api.cirrus.center/v2/auth/user/';
+    $authUrl = "https://$server/v2/auth/user/";
     $authHeaders = [
         "Authorization: Bearer $apikey",
         "Token: $token"
@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $randomNumber = rand(10000000, 99999999);
 
     // OTP database API call
-    $dataUrl = 'https://api.cirrus.center/v2/data/database/';
+    $dataUrl = "https://$server/v2/data/database/";
     $dataHeaders = [
         "Authorization: Bearer $apikey"
     ];

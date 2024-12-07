@@ -41,16 +41,16 @@ document.addEventListener('DOMContentLoaded', function() {
   const triggerButton = document.getElementById('trigger');
   if (document.cookie.split(';').some((item) => item.trim().startsWith('auth='))) {
     authLink.textContent = 'Dashboard';
-    authLink.href = './scout';
+    authLink.href = './dashboard';
     triggerButton.textContent = 'Dashboard';
-    triggerButton.href = './scout';
+    triggerButton.href = './dashboard';
   } else {
     authLink.textContent = 'Login';
     authLink.href = './login';
     triggerButton.textContent = 'Get Started';
     triggerButton.href = './login';
   }
-  initScene(); // Ensure the scene is initialized
+  initScene();
 });
 
 function initScene() {

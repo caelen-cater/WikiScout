@@ -5,7 +5,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' || empty($_POST)) {
 }
 
 $apikey = 'API_KEY';
-$api_url = 'https://api.cirrus.center/v2/auth/user/';
+$api_url = 'https://charlotte.sparrow.us-east.cirrusapi.com/v2/auth/user/';
 
 $username = $_POST['username'];
 $password = $_POST['password'];
@@ -26,10 +26,10 @@ function handle_response($http_code, $response, $is_registration = false) {
             header('Location: callback');
             exit();
         }
-    } else if ($http_code == 401) {
-        header('Location: ../?auth=failed');
-        exit();
-    }
+    } 
+    // If authentication fails
+    header('Location: ../?auth=failed');
+    exit();
 }
 
 if ($first && $last) {
@@ -87,7 +87,4 @@ if ($first && $last) {
 
     handle_response($http_code, $response);
 }
-
-header('Location: ../');
-exit();
 ?>

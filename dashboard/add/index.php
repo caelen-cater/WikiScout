@@ -1,5 +1,5 @@
 <?php
-require_once '../../secrets.php';
+require_once '../../config.php';
 
 header('Content-Type: application/json');
 header('Cache-Control: no-cache, no-store, must-revalidate');
@@ -22,6 +22,11 @@ if (!$teamNumber || !$eventId || !$data) {
     exit;
 }
 
+// Remove new lines from input data
+$teamNumber = str_replace(["\r", "\n"], '', $teamNumber);
+$eventId = str_replace(["\r", "\n"], '', $eventId);
+$data = str_replace(["\r", "\n"], '', $data);
+
 $token = $_COOKIE['auth'] ?? null;
 if (!$token) {
     http_response_code(401);
@@ -29,7 +34,7 @@ if (!$token) {
     exit;
 }
 
-$authUrl = 'https://api.cirrus.center/v2/auth/user/';
+$authUrl = "https://$server/v2/auth/user/";
 $authHeaders = [
     "Authorization: Bearer $apikey",
     "Token: $token"
@@ -63,7 +68,7 @@ if (!$userId || !$scoutingTeamNumber) {
 $season = date("Y");
 $eventCode = $eventId;
 
-$dbUrl = 'https://api.cirrus.center/v2/data/database/';
+$dbUrl = "https://$server/v2/data/database/";
 $dbHeaders = [
     "Authorization: Bearer $apikey"
 ];
