@@ -1,121 +1,93 @@
-a,
-a:focus,
-a:hover {
-  color: #fff;
-}
-
-.btn-secondary,
-.btn-secondary:hover,
-.btn-secondary:focus {
-  color: #333;
-  text-shadow: none;
-  background-color: #fff;
-  border: .05rem solid #fff;
-}
-
-html,
 body {
-  height: 100%;
+    font-family: Arial, sans-serif;
+    background-color: #393D49;
+    background-image: url('https://cdn.cirrus.center/static/noise.png');
+    color: #333;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
 }
 
-body {
-  display: flex;
-  justify-content: center;
-  color: #fff;
-  text-shadow: 0 .05rem .1rem rgba(0, 0, 0, .5);
+.container {
+    background-color: #fff;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0px 0px 20px rgba(0,0,0,0.2);
+    width: 100%;
+    max-width: 500px;
 }
 
-.cover-container {
-  max-width: 42em;
+.input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-bottom: 20px;
 }
 
-.masthead {
-  margin-bottom: 2rem;
+input[type="text"],
+input[type="password"] {
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 16px;
 }
 
-.masthead-brand {
-  margin-bottom: 0;
+.action-button {
+    background-color: #4CAF50;
+    border: none;
+    color: white;
+    padding: 15px 32px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    margin: 4px 2px;
+    cursor: pointer;
+    border-radius: 5px;
+    transition: background-color 0.3s;
 }
 
-.nav-masthead {
-  padding: .25rem 0;
-  font-weight: 700;
-  color: rgba(255, 255, 255, .5);
-  background-color: transparent;
-  border-bottom: .25rem solid transparent;
-  display: flex;
-  justify-content: center;
-  width: 100%;
+.action-button:hover {
+    background-color: #45a049;
 }
 
-.nav-masthead .nav-link:hover,
-.nav-masthead .nav-link:focus {
-  border-bottom-color: rgba(255, 255, 255, .25);
+h2 {
+    color: #333;
+    margin-bottom: 20px;
 }
 
-.nav-masthead .nav-link+.nav-link {
-  margin-left: 1rem;
+hr {
+    border: none;
+    border-top: 1px solid #ddd;
+    margin: 30px 0;
 }
 
-.nav-masthead .active {
-  color: #fff;
-  border-bottom-color: #fff;
+#github-link {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    width: 40px;
+    height: 40px;
+    opacity: 0.7;
+    transition: opacity 0.3s;
 }
 
-@media (min-width: 48em) {
-  .masthead-brand {
-    float: left;
-  }
-
-  .nav-masthead {
-    float: right;
-  }
+#github-link:hover {
+    opacity: 1;
 }
 
-.cover {
-  padding: 0 1.5rem;
+#github-link img {
+    width: 100%;
+    height: 100%;
 }
 
-.cover .btn-lg {
-  padding: .75rem 1.25rem;
-  font-weight: 700;
+#deactivateButton {
+    background-color: #dc3545;
 }
 
-.mastfoot {
-  color: rgba(255, 255, 255, .5);
-}
-
-#page {
-  visibility: hidden;
-}
-
-#reveal-effect {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  /* transition: all 5s; */
-}
-
-body {
-  background: #fff;
-}
-
-body.loaded {
-  background-color: #333333;
-  box-shadow: inset 0 0 5rem rgba(0, 0, 0, .5);
-}
-
-body.loaded #page {
-  visibility: visible;
-}
-
-body.loaded #reveal-effect {
-  opacity: 1;
-}
-
-body.revealed #reveal-effect {
-  display: none;
+#deactivateButton:hover {
+    background-color: #c82333;
 }

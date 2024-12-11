@@ -1,23 +1,36 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <style>
-        @font-face {
-            font-family: 'CourierPrime';
-            src: url('../fonts/courierprime/CourierPrime-Regular.ttf') format('truetype');
-        }
-    </style>
+    <title>Admin Panel</title>
+    <link rel="stylesheet" href="../style.css">
 </head>
 <body>
-    <input type="text" id="teamNumber" placeholder="Enter Team Number">
-    <input type="text" id="username" placeholder="Enter Username">
-    <input type="password" id="password" placeholder="Enter Password">
-    <button id="activateButton">Activate</button>
+    <div class="container">
+        <h2>Team Activation</h2>
+        <div class="input-group">
+            <input type="text" id="teamNumber" placeholder="Enter Team Number">
+            <input type="text" id="username" placeholder="Enter Username">
+            <input type="password" id="password" placeholder="Enter Password">
+            <button id="activateButton" class="action-button">Activate</button>
+        </div>
+
+        <hr>
+        
+        <h2>Team Deactivation</h2>
+        <div class="input-group">
+            <input type="text" id="deactivateTeamNumber" placeholder="Enter Team Number">
+            <button id="deactivateButton" class="action-button">Deactivate</button>
+        </div>
+    </div>
+
+    <a href="https://github.com/caelen-cater/WikiScout" id="github-link" target="_blank">
+        <img src="https://cdn.cirrus.center/static/github-mark-white.svg" alt="GitHub">
+    </a>
 
     <script src="script.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            fetch('/admin/activate/index.php', {
+            fetch('activate', {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json'
