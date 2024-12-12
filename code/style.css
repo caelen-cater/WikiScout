@@ -1,11 +1,16 @@
 body {
-  background-image: linear-gradient(to bottom right, #997399, #f8598b, #f7bf00);
-  overflow: hidden;
-  padding: 4vw;
-  height: 100vh;
+  font-family: Arial, sans-serif;
+  background-color: #393D49;
+  background-image: url('https://cirruscdn.com/static/noise.png');
+  color: #333;
+  margin: 0;
+  padding: 0;
   display: flex;
   justify-content: center;
   align-items: center;
+  height: 100vh;
+  overflow: hidden;
+  padding: 4vw;
 }
 
 form {

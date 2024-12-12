@@ -7,6 +7,12 @@ const menuItems = menu.querySelectorAll(".menu__item");
 const menuBorder = menu.querySelector(".menu__border");
 let activeItem = menu.querySelector(".active");
 
+const otpContainer = document.getElementById('otp-container');
+const otpInfoContainer = document.getElementById('otp-info-container');
+const otpInputs = otpContainer.querySelectorAll('input');
+const deleteBtn = document.getElementById('delete-btn');
+const regenerateBtn = document.getElementById('regenerate-btn');
+
 function clickItem(item, index) {
 
     menu.style.removeProperty("--timeOut");
@@ -19,11 +25,14 @@ function clickItem(item, index) {
 
     
     item.classList.add("active");
-    body.style.backgroundColor = bgColorsBody[index];
     activeItem = item;
     offsetMenuBorder(activeItem, menuBorder);
     
-    
+    if (index === 0) {
+        showOtpContainer();
+    } else {
+        hideOtpContainer();
+    }
 }
 
 function offsetMenuBorder(element, menuBorder) {
@@ -34,11 +43,84 @@ function offsetMenuBorder(element, menuBorder) {
 
 }
 
+function showOtpContainer() {
+    otpContainer.classList.add('active');
+    otpInfoContainer.classList.add('active');
+    fetchOtpCode();
+}
+
+function hideOtpContainer() {
+    otpContainer.classList.remove('active');
+    otpInfoContainer.classList.remove('active');
+}
+
+if (menuItems[0].classList.contains('active')) {
+    showOtpContainer();
+}
+
+function fetchOtpCode() {
+    fetch('./auth', {
+        method: 'GET'
+    })
+    .then(response => response.json())
+    .then(data => {
+        const otpCode = data.code.toString().padStart(8, '0');
+        otpInputs.forEach((input, index) => {
+            input.value = otpCode[index] || '';
+        });
+    })
+    .catch(error => console.error('Error fetching OTP code:', error));
+}
+
+deleteBtn.addEventListener('click', () => {
+    deleteBtn.disabled = true;
+    regenerateBtn.disabled = true;
+    fetch('./auth', {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.message === 'OTP invalidated') {
+            fetchOtpCode();
+        }
+    })
+    .catch(error => console.error('Error deleting OTP code:', error))
+    .finally(() => {
+        deleteBtn.disabled = false;
+        regenerateBtn.disabled = false;
+    });
+});
+
+regenerateBtn.addEventListener('click', () => {
+    deleteBtn.disabled = true;
+    regenerateBtn.disabled = true;
+    fetch('./auth/', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        const otpCode = data.code.toString().padStart(8, '0');
+        otpInputs.forEach((input, index) => {
+            input.value = otpCode[index] || '';
+        });
+    })
+    .catch(error => console.error('Error regenerating OTP code:', error))
+    .finally(() => {
+        deleteBtn.disabled = false;
+        regenerateBtn.disabled = false;
+    });
+});
+
 offsetMenuBorder(activeItem, menuBorder);
 
 menuItems.forEach((item, index) => {
 
-    item.addEventListener("click", () => clickItem(item, index));
+    item.addEventListener("click", () => {
+        clickItem(item, index);
+        if (index === 0) {
+            fetchOtpCode();
+        }
+    });
     
 })
 

@@ -1,7 +1,43 @@
 <?php
 require_once '../../config.php';
 
+// Set no-cache headers
+header("Cache-Control: no-cache, no-store, must-revalidate");
+header("Pragma: no-cache");
+header("Expires: 0");
+
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    if (!isset($_COOKIE['auth'])) {
+        http_response_code(400);
+        echo json_encode(['error' => 'No auth cookie found']);
+        exit;
+    }
+
+    $token = $_COOKIE['auth'];
+    $apikey = $apikey;
+
+    // Fetch user info to get the OTP stored in the phone number field
+    $userUrl = "https://$server/v2/auth/user/";
+    $userHeaders = [
+        "Authorization: Bearer $apikey",
+        "Token: $token"
+    ];
+
+    $userResponse = makeApiRequest($userUrl, $userHeaders);
+    $userData = json_decode($userResponse['response'], true);
+
+    if ($userResponse['http_code'] !== 200) {
+        http_response_code($userResponse['http_code']);
+        echo json_encode(['error' => 'User API error', 'details' => $userResponse['response']]);
+        exit;
+    }
+
+    $otp = isset($userData['details']['phone']) ? $userData['details']['phone'] : '--------';
+
+    echo json_encode(['code' => $otp]);
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($_COOKIE['auth'])) {
         http_response_code(400);
         echo json_encode(['error' => 'No auth cookie found']);
@@ -29,7 +65,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     // Generate random 8 digit number
     $randomNumber = rand(10000000, 99999999);
 
-    // OTP database API call
+    // Store OTP in the user's phone number field
+    $updateUrl = "https://$server/v2/auth/user/";
+    $updateHeaders = [
+        "Authorization: Bearer $apikey",
+        "Token: $token"
+    ];
+    $updateBody = [
+        'phone' => $randomNumber
+    ];
+
+    $updateResponse = makeApiRequest($updateUrl, $updateHeaders, $updateBody);
+
+    if ($updateResponse['http_code'] !== 200) {
+        http_response_code($updateResponse['http_code']);
+        echo json_encode(['error' => 'Update API error', 'details' => $updateResponse['response']]);
+        exit;
+    }
+
+    // Add OTP to the database
     $dataUrl = "https://$server/v2/data/database/";
     $dataHeaders = [
         "Authorization: Bearer $apikey"
@@ -44,7 +98,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $dataResponse = makeApiRequest($dataUrl, $dataHeaders, $dataBody);
     $dataResponseBody = json_decode($dataResponse['response'], true);
 
-    echo json_encode(['code' => $dataResponseBody['entry']]);
+    echo json_encode(['code' => $randomNumber]);
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
+    if (!isset($_COOKIE['auth'])) {
+        http_response_code(400);
+        echo json_encode(['error' => 'No auth cookie found']);
+        exit;
+    }
+
+    $token = $_COOKIE['auth'];
+    $apikey = $apikey;
+
+    // Clear OTP from the user's phone number field
+    $updateUrl = "https://$server/v2/auth/user/";
+    $updateHeaders = [
+        "Authorization: Bearer $apikey",
+        "Token: $token"
+    ];
+    $updateBody = [
+        'phone' => 'null'
+    ];
+
+    $updateResponse = makeApiRequest($updateUrl, $updateHeaders, $updateBody);
+
+    if ($updateResponse['http_code'] !== 200) {
+        http_response_code($updateResponse['http_code']);
+        echo json_encode(['error' => 'Update API error', 'details' => $updateResponse['response']]);
+        exit;
+    }
+
+    // Remove OTP from the database
+    $otp = $_COOKIE['OTP'];
+    $deleteUrl = "https://$server/v2/data/database/?db=WikiScout&log=OTP&entry=$otp";
+    $deleteHeaders = [
+        "Authorization: Bearer $apikey"
+    ];
+
+    $deleteResponse = makeApiRequest($deleteUrl, $deleteHeaders);
+    if ($deleteResponse['http_code'] !== 200) {
+        http_response_code($deleteResponse['http_code']);
+        echo json_encode(['error' => 'Delete API error', 'details' => $deleteResponse['response']]);
+        exit;
+    }
+
+    echo json_encode(['message' => 'OTP invalidated']);
 }
 
 function makeApiRequest($url, $headers, $body = null) {

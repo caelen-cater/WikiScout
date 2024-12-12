@@ -5,12 +5,15 @@
   <title>Animated Tab Bar</title>
   <link rel="stylesheet" href="./style.css">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
 </head>
 <body>
 <!-- partial:index.partial.html -->
 <menu class="menu">
     
-    <button class="menu__item active" style="--bgColorItem: #ff8c00;" onclick="hideIframe()">
+    <button class="menu__item" style="--bgColorItem: #ff8c00;" onclick="hideIframe()">
       <img class="icon" src="https://cirruscdn.com/upload/ehI6NzBJngSc0RCFtfbquow3D" alt="icon" style="width: 2.6em; height: 2.6em; filter: invert(100%);">
     </button>
 
@@ -22,7 +25,7 @@
       <img class="icon" src="https://cirruscdn.com/upload/9Q0KOj61tVxnHyPAk8DTpW7li" alt="icon" style="width: 2.6em; height: 2.6em; filter: invert(100%);">
     </button>
 
-    <button class="menu__item" style="--bgColorItem: #e0b115;" onclick="hideIframe()"> 
+    <button class="menu__item active" style="--bgColorItem: #7ee787;" onclick="hideIframe()"> 
       <img class="icon" src="https://cirruscdn.com/upload/iH5Nry7BTLjQuVaIn9q6gAbwE" alt="icon" style="width: 2.6em; height: 2.6em; filter: invert(100%);">
     </button>
 
@@ -40,10 +43,38 @@
     </svg>
   </div>
 
+  <div id="otp-info-container">
+    <h4 class="text-center mb-4">To enter an OTP and login to this account, go to the following link and enter the code below:</h4>
+    <pre id="otp-link" class="code-block"></pre>
+  </div>
+
+  <div id="otp-container">
+    <h4 class="text-center mb-4">Your OTP Code</h4>
+    <div class="d-flex mb-3">
+        <input type="tel" maxlength="1" pattern="[0-9]" class="form-control" readonly>
+        <input type="tel" maxlength="1" pattern="[0-9]" class="form-control" readonly>
+        <input type="tel" maxlength="1" pattern="[0-9]" class="form-control" readonly>
+        <input type="tel" maxlength="1" pattern="[0-9]" class="form-control" readonly>
+        <input type="tel" maxlength="1" pattern="[0-9]" class="form-control" readonly>
+        <input type="tel" maxlength="1" pattern="[0-9]" class="form-control" readonly>
+        <input type="tel" maxlength="1" pattern="[0-9]" class="form-control" readonly>
+        <input type="tel" maxlength="1" pattern="[0-9]" class="form-control" readonly>
+    </div>
+    <div class="button-container">
+        <button id="delete-btn" class="btn btn-danger">Delete</button>
+        <button id="regenerate-btn" class="btn btn-primary">Regenerate</button>
+    </div>
+  </div>
+
   <script>
     function hideIframe() {
       document.getElementById('iframe-container').style.display = 'none';
     }
+
+    // Auto-fill the host domain in the OTP info container
+    const currentUrl = window.location.href;
+    const hostDomain = currentUrl.replace('dashboard/', 'code/');
+    document.getElementById('otp-link').textContent = hostDomain;
   </script>
 
 <!-- partial -->

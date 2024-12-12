@@ -1,4 +1,4 @@
 <?php
-header("Location: ../../../scout/");
+header("Location: ../../../dashboard/");
 exit();
 ?>
