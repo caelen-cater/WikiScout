@@ -26,6 +26,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $userResponse = makeApiRequest($userUrl, $userHeaders);
     $userData = json_decode($userResponse['response'], true);
 
+    if ($userResponse['http_code'] === 401) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Unauthorized']);
+        exit;
+    }
+
+    if ($userResponse['http_code'] === 200) {
+        if (is_null($userData['details']['address'])) {
+            http_response_code(501);
+            echo json_encode(['error' => 'Address is null']);
+            exit;
+        }
+
+        if (is_numeric($userData['details']['address'])) {
+            // Complete the script
+            http_response_code(200);
+            echo json_encode(['message' => 'Address is a number']);
+            exit;
+        }
+    }
+
     if ($userResponse['http_code'] !== 200) {
         http_response_code($userResponse['http_code']);
         echo json_encode(['error' => 'User API error', 'details' => $userResponse['response']]);

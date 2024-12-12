@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <title>Admin Panel</title>
-    <link rel="stylesheet" href="../style.css">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
@@ -24,13 +24,13 @@
     </div>
 
     <a href="https://github.com/caelen-cater/WikiScout" id="github-link" target="_blank">
-        <img src="https://cdn.cirrus.center/static/github-mark-white.svg" alt="GitHub">
+        <img src="https://cirruscdn.com/static/github-mark-white.svg" alt="GitHub">
     </a>
 
     <script src="script.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            fetch('activate', {
+            fetch('activate/', {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json'

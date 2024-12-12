@@ -13,8 +13,18 @@ const otpInputs = otpContainer.querySelectorAll('input');
 const deleteBtn = document.getElementById('delete-btn');
 const regenerateBtn = document.getElementById('regenerate-btn');
 
-function clickItem(item, index) {
+function validateSession() {
+    fetch('./validate/', {
+        method: 'GET'
+    })
+    .then(handleApiResponse)
+    .catch(error => console.error('Error validating session:', error));
+}
 
+window.addEventListener('load', validateSession);
+
+function clickItem(item, index) {
+    validateSession();
     menu.style.removeProperty("--timeOut");
     
     if (activeItem == item) return;
@@ -23,7 +33,6 @@ function clickItem(item, index) {
         activeItem.classList.remove("active");
     }
 
-    
     item.classList.add("active");
     activeItem = item;
     offsetMenuBorder(activeItem, menuBorder);
@@ -58,11 +67,22 @@ if (menuItems[0].classList.contains('active')) {
     showOtpContainer();
 }
 
+function handleApiResponse(response) {
+    if (response.status === 501) {
+        window.location.href = '../activate';
+        return Promise.reject('Redirecting to activate');
+    } else if (response.status === 401) {
+        window.location.href = '../login';
+        return Promise.reject('Redirecting to login');
+    }
+    return response.json();
+}
+
 function fetchOtpCode() {
     fetch('./auth', {
         method: 'GET'
     })
-    .then(response => response.json())
+    .then(handleApiResponse)
     .then(data => {
         const otpCode = data.code.toString().padStart(8, '0');
         otpInputs.forEach((input, index) => {
@@ -78,7 +98,7 @@ deleteBtn.addEventListener('click', () => {
     fetch('./auth', {
         method: 'DELETE'
     })
-    .then(response => response.json())
+    .then(handleApiResponse)
     .then(data => {
         if (data.message === 'OTP invalidated') {
             fetchOtpCode();
@@ -97,7 +117,7 @@ regenerateBtn.addEventListener('click', () => {
     fetch('./auth/', {
         method: 'POST'
     })
-    .then(response => response.json())
+    .then(handleApiResponse)
     .then(data => {
         const otpCode = data.code.toString().padStart(8, '0');
         otpInputs.forEach((input, index) => {

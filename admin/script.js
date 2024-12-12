@@ -3,7 +3,7 @@ document.getElementById('activateButton').addEventListener('click', function() {
     const username = document.getElementById('username').value;
     const password = document.getElementById('password').value;
 
-    fetch('activate', {
+    fetch('activate/', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -21,11 +21,11 @@ document.getElementById('activateButton').addEventListener('click', function() {
         }
     });
 });
+
 document.getElementById('deactivateButton').addEventListener('click', function() {
     const teamNumber = document.getElementById('deactivateTeamNumber').value;
-    console.log('Deactivate clicked for team:', teamNumber); // Debug line
 
-    fetch('deactivate', {
+    fetch('deactivate/', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -33,7 +33,6 @@ document.getElementById('deactivateButton').addEventListener('click', function()
         body: JSON.stringify({ teamNumber })
     })
     .then(response => {
-        console.log('Deactivate response:', response.status); // Debug line
         if (response.status === 401) {
             window.location.href = '../../login/';
         } else if (response.ok) {
@@ -44,7 +43,6 @@ document.getElementById('deactivateButton').addEventListener('click', function()
         }
     })
     .catch(error => {
-        console.error('Deactivate error:', error); // Debug line
         alert('Deactivation failed');
     });
 });
