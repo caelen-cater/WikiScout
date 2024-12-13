@@ -164,6 +164,41 @@ body{
     display: flex;
 }
 
+#otp-container input[type="tel"] {
+    width: 50px;
+    height: 50px;
+    margin: 0 2px;
+    text-align: center;
+    font-size: 2rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    flex: 1;
+    max-width: 50px;
+}
+
+#otp-container .d-flex {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+#otp-container .d-flex input[type="tel"] {
+    width: 60px;
+    height: 60px;
+    margin: 2px;
+    text-align: center;
+    font-size: 2rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    flex: 1;
+    max-width: 60px;
+}
+
 .form-control {
     width: 50px;
     height: 50px;
@@ -175,7 +210,7 @@ body{
 .d-flex {
     display: flex;
     justify-content: center;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
 }
 
 .button-container {
@@ -245,12 +280,12 @@ body{
     width: calc(100% - 4rem);
     max-width: 600px;
     position: absolute;
-    top: 2rem; /* Add padding from the top of the page */
-    bottom: 7rem; /* Align with the top of the menu */
-    max-height: calc(100vh - 9rem); /* Adjust height to fit on the page */
-    overflow-y: auto; /* Make the form scrollable if too big */
-    padding: 2rem; /* Add padding */
-    padding-top: 4rem; /* Add extra padding to prevent cut off */
+    top: 2rem;
+    bottom: 7rem;
+    max-height: calc(100vh - 9rem);
+    overflow-y: auto;
+    padding: 2rem;
+    padding-top: 4rem;
 }
 
 .form-container.active {
@@ -268,8 +303,8 @@ body{
     margin-bottom: 0;
     font-weight: bold;
     margin-right: 0.5rem;
-    min-width: 120px; /* Add minimum width to prevent wrapping */
-    white-space: nowrap; /* Prevent label text from wrapping */
+    min-width: 120px;
+    white-space: nowrap;
 }
 
 .form-group input[type="text"],
@@ -302,7 +337,7 @@ body{
     left: 50%;
     width: 1.2rem;
     height: 1.2rem;
-    background-color: #7ee787; /* Lime green color */
+    background-color: #7ee787;
     border-radius: 3px;
     transform: translate(-50%, -50%);
 }
@@ -315,7 +350,7 @@ body{
     background: #e0e0e0;
     border-radius: 4px;
     outline: none;
-    margin: 15px 0; /* Add margin to center the track vertically */
+    margin: 15px 0;
     position: relative;
 }
 
@@ -324,7 +359,7 @@ body{
     appearance: none;
     width: 1.5rem;
     height: 1.5rem;
-    background-color: #7ee787; /* Lime green color */
+    background-color: #7ee787;
     border-radius: 50%;
     cursor: pointer;
     border: 2px solid white;
@@ -337,7 +372,7 @@ body{
 .form-group input[type="range"]::-moz-range-thumb {
     width: 1.5rem;
     height: 1.5rem;
-    background-color: #7ee787; /* Lime green color */
+    background-color: #7ee787;
     border-radius: 50%;
     cursor: pointer;
     border: 2px solid white;
@@ -348,7 +383,7 @@ body{
 .form-group input[type="range"]::-ms-thumb {
     width: 1.5rem;
     height: 1.5rem;
-    background-color: #7ee787; /* Lime green color */
+    background-color: #7ee787;
     border-radius: 50%;
     cursor: pointer;
     border: 2px solid white;
@@ -397,7 +432,7 @@ body{
 }
 
 .form-group input[type="number"].small-text {
-    flex-grow: 1; /* Allow the input to fill the remaining space */
+    flex-grow: 1;
     padding: 0.5rem;
     border: 1px solid #ccc;
     border-radius: 4px;
@@ -406,7 +441,7 @@ body{
 
 .form-group .btn-primary {
     margin-left: 10px;
-    background-color: #7ee787; /* Lime green color */
+    background-color: #7ee787;
     border: none;
     color: white;
 }
@@ -417,7 +452,7 @@ body{
     border-radius: 4px;
     cursor: pointer;
     font-size: 1rem;
-    background-color: #7ee787; /* Lime green color */
+    background-color: #7ee787;
     color: white;
 }
 

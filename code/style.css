@@ -14,27 +14,42 @@ body {
 }
 
 form {
-  padding: 2rem;
+  padding: 3rem;
   border-radius: 4px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   background: #fff;
   display: flex;
   flex-direction: column;
   align-items: center;
+  width: calc(100% - 4rem);
+  max-width: 600px;
 }
 
 .form-control {
-  width: 50px;
-  height: 50px;
-  margin: 0 5px;
+  width: 60px;
+  height: 60px;
+  margin: 0 2px;
   text-align: center;
   font-size: 2rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background-color: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  flex: 1;
+  max-width: 60px;
 }
 
 .d-flex {
   display: flex;
   justify-content: center;
   flex-wrap: wrap;
+  gap: 10px;
+}
+
+.btn-primary {
+  background-image: linear-gradient(to bottom right, #997399, #f8598b, #f7bf00);
+  color: white;
+  border: none;
 }
 
 @media (max-width: 768px) {

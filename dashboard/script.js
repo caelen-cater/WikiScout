@@ -203,7 +203,6 @@ function updateSliderBackground(slider) {
 function renderForm(elements) {
     formContainer.innerHTML = '';
 
-    // Add Team Number field
     const teamNumberGroup = document.createElement('div');
     teamNumberGroup.className = 'form-group';
     const teamNumberLabel = document.createElement('label');
@@ -212,12 +211,11 @@ function renderForm(elements) {
     teamNumberInput.type = 'number';
     teamNumberInput.id = 'team-number';
     teamNumberInput.required = true;
-    teamNumberInput.className = 'full-width'; // Change to full-width
+    teamNumberInput.className = 'full-width';
     teamNumberGroup.appendChild(teamNumberLabel);
     teamNumberGroup.appendChild(teamNumberInput);
     formContainer.appendChild(teamNumberGroup);
 
-    // Add Event ID field with save button
     const eventIdGroup = document.createElement('div');
     eventIdGroup.className = 'form-group';
     const eventIdLabel = document.createElement('label');
@@ -238,7 +236,6 @@ function renderForm(elements) {
     eventIdGroup.appendChild(eventIdSaveButton);
     formContainer.appendChild(eventIdGroup);
 
-    // Set default value for Event ID if available
     const savedEventId = localStorage.getItem('event');
     if (savedEventId) {
         eventIdInput.value = savedEventId;
@@ -257,7 +254,7 @@ function renderForm(elements) {
             case 'number':
                 input = document.createElement('input');
                 input.type = 'number';
-                input.className = 'full-width'; // Change from small-text to full-width
+                input.className = 'full-width';
                 formGroup.appendChild(input);
                 break;
             case 'text':
@@ -281,26 +278,26 @@ function renderForm(elements) {
                 input.min = element.options[0];
                 input.max = element.options[1];
                 input.step = element.options[2];
-                input.value = element.options[0]; // Set default value to minimum
+                input.value = element.options[0];
 
                 const numberInput = document.createElement('input');
                 numberInput.type = 'number';
                 numberInput.min = element.options[0];
                 numberInput.max = element.options[1];
                 numberInput.step = element.options[2];
-                numberInput.value = element.options[0]; // Set default value to minimum
+                numberInput.value = element.options[0];
                 numberInput.className = 'small-text';
 
-                updateSliderBackground(input); // Initialize slider background
+                updateSliderBackground(input);
 
                 input.addEventListener('input', () => {
                     numberInput.value = input.value;
-                    updateSliderBackground(input); // Update slider background
+                    updateSliderBackground(input);
                 });
 
                 numberInput.addEventListener('input', () => {
                     input.value = numberInput.value;
-                    updateSliderBackground(input); // Update slider background
+                    updateSliderBackground(input);
                 });
 
                 formGroup.appendChild(input);
@@ -354,7 +351,7 @@ function handleSubmit(event) {
     })
     .then(response => {
         if (response.ok) {
-            window.location.reload(); // Refresh the page
+            window.location.reload();
         } else {
             return response.json().then(data => {
                 console.log('Form submission error:', data);

@@ -6,7 +6,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $apikey = $apikey;
 
     // Step 1: Get token
-    $otpUrl = $server . "/v2/data/database/?db=WikiScout&log=OTP&entry=" . urlencode($otp);
+    $otpUrl = "https://" . $server . "/v2/data/database/?db=WikiScout&log=OTP&entry=" . urlencode($otp);
     $otpOptions = [
         "http" => [
             "header" => "Authorization: Bearer " . $apikey
