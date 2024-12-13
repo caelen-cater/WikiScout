@@ -28,28 +28,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
     if ($userResponse['http_code'] === 401) {
         http_response_code(401);
-        echo json_encode(['error' => 'Unauthorized']);
         exit;
-    }
-
-    if ($userResponse['http_code'] === 200) {
-        if (is_null($userData['details']['address'])) {
-            http_response_code(501);
-            echo json_encode(['error' => 'Address is null']);
-            exit;
-        }
-
-        if (is_numeric($userData['details']['address'])) {
-            // Complete the script
-            http_response_code(200);
-            echo json_encode(['message' => 'Address is a number']);
-            exit;
-        }
     }
 
     if ($userResponse['http_code'] !== 200) {
         http_response_code($userResponse['http_code']);
-        echo json_encode(['error' => 'User API error', 'details' => $userResponse['response']]);
         exit;
     }
 
@@ -79,7 +62,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($authResponse['http_code'] !== 200) {
         http_response_code($authResponse['http_code']);
-        echo json_encode(['error' => 'Auth API error', 'details' => $authResponse['response']]);
         exit;
     }
 
@@ -96,11 +78,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'phone' => $randomNumber
     ];
 
-    $updateResponse = makeApiRequest($updateUrl, $updateHeaders, $updateBody);
+    $updateResponse = makeApiRequest($updateUrl, $updateHeaders, json_encode($updateBody));
 
     if ($updateResponse['http_code'] !== 200) {
         http_response_code($updateResponse['http_code']);
-        echo json_encode(['error' => 'Update API error', 'details' => $updateResponse['response']]);
         exit;
     }
 
@@ -117,7 +98,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     ]);
 
     $dataResponse = makeApiRequest($dataUrl, $dataHeaders, $dataBody);
-    $dataResponseBody = json_decode($dataResponse['response'], true);
 
     echo json_encode(['code' => $randomNumber]);
 }
@@ -142,11 +122,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
         'phone' => 'null'
     ];
 
-    $updateResponse = makeApiRequest($updateUrl, $updateHeaders, $updateBody);
+    $updateResponse = makeApiRequest($updateUrl, $updateHeaders, json_encode($updateBody));
 
     if ($updateResponse['http_code'] !== 200) {
         http_response_code($updateResponse['http_code']);
-        echo json_encode(['error' => 'Update API error', 'details' => $updateResponse['response']]);
         exit;
     }
 
@@ -160,7 +139,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
     $deleteResponse = makeApiRequest($deleteUrl, $deleteHeaders);
     if ($deleteResponse['http_code'] !== 200) {
         http_response_code($deleteResponse['http_code']);
-        echo json_encode(['error' => 'Delete API error', 'details' => $deleteResponse['response']]);
         exit;
     }
 
