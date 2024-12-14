@@ -65,17 +65,66 @@ if (!$userId || !$scoutingTeamNumber) {
     exit;
 }
 
+// Read form configuration
+$formConfig = file_get_contents('../../form.dat');
+$formFields = explode("\n", $formConfig);
+$privateFieldIndexes = [];
+
+// Identify private fields
+$fieldIndex = 0;
+foreach ($formFields as $field) {
+    if (strpos($field, 'private') !== false) {
+        $privateFieldIndexes[] = $fieldIndex;
+    }
+    $fieldIndex++;
+}
+
+// Process the data - split and remove event code if present
+$dataFields = explode('|', $data);
+if (strpos($dataFields[0], $eventId) !== false) {
+    array_shift($dataFields);
+}
+$data = implode('|', $dataFields);
+$publicData = $dataFields;
+
+// Replace private fields with placeholder
+foreach ($privateFieldIndexes as $index) {
+    if (isset($publicData[$index])) {
+        $publicData[$index] = "Redacted Field";
+    }
+}
+
 $season = date("Y");
 $eventCode = $eventId;
 
+// Save public data
 $dbUrl = "https://$server/v2/data/database/";
 $dbHeaders = [
     "Authorization: Bearer $apikey"
 ];
-$dbData = [
+$publicDbData = [
     'db' => "WikiScout-$season-$eventCode",
-    'log' => $teamNumber,
+    'log' => $teamNumber . "-public",
     'entry' => $scoutingTeamNumber,
+    'value' => implode('|', $publicData)
+];
+
+$dbCh = curl_init();
+curl_setopt($dbCh, CURLOPT_URL, $dbUrl);
+curl_setopt($dbCh, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($dbCh, CURLOPT_HTTPHEADER, $dbHeaders);
+curl_setopt($dbCh, CURLOPT_POST, true);
+curl_setopt($dbCh, CURLOPT_POSTFIELDS, http_build_query($publicDbData));
+
+$publicDbResponse = curl_exec($dbCh);
+$publicDbHttpCode = curl_getinfo($dbCh, CURLINFO_HTTP_CODE);
+curl_close($dbCh);
+
+// Save private data
+$privateDbData = [
+    'db' => "WikiScout-$season-$eventCode",
+    'log' => $scoutingTeamNumber . "-private",
+    'entry' => $teamNumber,
     'value' => $data
 ];
 
@@ -84,12 +133,22 @@ curl_setopt($dbCh, CURLOPT_URL, $dbUrl);
 curl_setopt($dbCh, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($dbCh, CURLOPT_HTTPHEADER, $dbHeaders);
 curl_setopt($dbCh, CURLOPT_POST, true);
-curl_setopt($dbCh, CURLOPT_POSTFIELDS, http_build_query($dbData));
+curl_setopt($dbCh, CURLOPT_POSTFIELDS, http_build_query($privateDbData));
 
-$dbResponse = curl_exec($dbCh);
-$dbHttpCode = curl_getinfo($dbCh, CURLINFO_HTTP_CODE);
+$privateDbResponse = curl_exec($dbCh);
+$privateDbHttpCode = curl_getinfo($dbCh, CURLINFO_HTTP_CODE);
 curl_close($dbCh);
 
-http_response_code($dbHttpCode);
-echo $dbResponse;
+// Return response based on both operations
+if ($publicDbHttpCode === 200 && $privateDbHttpCode === 200) {
+    http_response_code(200);
+    echo json_encode(['success' => true]);
+} else {
+    http_response_code(500);
+    echo json_encode([
+        'error' => 'Database operation failed',
+        'public_status' => $publicDbHttpCode,
+        'private_status' => $privateDbHttpCode
+    ]);
+}
 ?>

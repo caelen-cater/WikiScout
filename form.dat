@@ -4,4 +4,4 @@ checkbox "High Basket"
 checkbox "High Chamber"
 slider "Hang" 0 3 1
 number "Auto Points"
-text "Extra Data" big
+text "Private Notes" big private

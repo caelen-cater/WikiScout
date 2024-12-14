@@ -203,20 +203,6 @@ function updateSliderBackground(slider) {
 function renderForm(elements) {
     formContainer.innerHTML = '';
 
-    // Team Number Group
-    const teamNumberGroup = document.createElement('div');
-    teamNumberGroup.className = 'form-group';
-    const teamNumberLabel = document.createElement('label');
-    teamNumberLabel.textContent = 'Team Number';
-    const teamNumberInput = document.createElement('input');
-    teamNumberInput.type = 'number';
-    teamNumberInput.id = 'team-number';
-    teamNumberInput.required = true;
-    teamNumberInput.className = 'full-width';
-    teamNumberGroup.appendChild(teamNumberLabel);
-    teamNumberGroup.appendChild(teamNumberInput);
-    formContainer.appendChild(teamNumberGroup);
-
     // Event ID Group
     const eventIdGroup = document.createElement('div');
     eventIdGroup.className = 'form-group event-group';
@@ -234,24 +220,17 @@ function renderForm(elements) {
     const eventIdSelect = document.createElement('select');
     eventIdSelect.id = 'event-id';
     eventIdSelect.required = true;
-    eventIdSelect.style.width = '100%';  // Make dropdown take full width
+    eventIdSelect.style.width = '100%';
 
     const eventIdSaveButton = document.createElement('button');
     eventIdSaveButton.textContent = 'Save';
     eventIdSaveButton.className = 'btn btn-primary';
     eventIdSaveButton.style.margin = '0';
     eventIdSaveButton.addEventListener('click', () => {
-        const hiddenInput = document.getElementById('event-id-code');
-        if (hiddenInput.value) {
-            localStorage.setItem('event', hiddenInput.value);
+        if (eventIdInput.value) {
+            localStorage.setItem('event', eventIdInput.value);
         }
     });
-
-    inputRow.appendChild(eventIdInput);
-    inputRow.appendChild(eventIdSelect);
-    inputRow.appendChild(eventIdSaveButton);
-    eventIdGroup.appendChild(inputRow);
-    formContainer.appendChild(eventIdGroup);
 
     fetch('./today/')
         .then(response => response.json())
@@ -261,7 +240,6 @@ function renderForm(elements) {
             defaultOption.textContent = 'Select an event';
             eventIdSelect.appendChild(defaultOption);
 
-            // Create an object to store code-name pairs
             const eventData = {};
             data.events.forEach(event => {
                 eventData[event.name] = event.code;
@@ -271,26 +249,74 @@ function renderForm(elements) {
                 eventIdSelect.appendChild(option);
             });
 
-            // Handle select changes
+            // Handle event selection changes
             eventIdSelect.addEventListener('change', () => {
                 const selectedName = eventIdSelect.value;
-                eventIdInput.value = eventData[selectedName] || '';
+                const eventCode = eventData[selectedName] || '';
+                eventIdInput.value = eventCode;
+                
+                // Update team select when event changes
+                const teamSelect = document.getElementById('team-select');
+                if (eventCode) {
+                    fetch(`/dashboard/teams/?event=${eventCode}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            teamSelect.innerHTML = '<option value="">Select Team</option>';
+                            data.teams.sort((a, b) => a - b).forEach(team => {
+                                const option = document.createElement('option');
+                                option.value = team;
+                                option.textContent = team;
+                                teamSelect.appendChild(option);
+                            });
+                            teamSelect.disabled = false;
+                        })
+                        .catch(error => {
+                            console.error('Error fetching teams:', error);
+                            teamSelect.disabled = true;
+                            teamSelect.innerHTML = '<option value="">Error loading teams</option>';
+                        });
+                } else {
+                    teamSelect.disabled = true;
+                    teamSelect.innerHTML = '<option value="">Select Team</option>';
+                }
             });
 
             // Set saved event if it exists
             const savedEventId = localStorage.getItem('event');
             if (savedEventId) {
-                // Find the event name for the saved code
                 const savedEventName = Object.keys(eventData).find(name => 
                     eventData[name] === savedEventId
                 );
                 if (savedEventName) {
                     eventIdSelect.value = savedEventName;
                     eventIdInput.value = savedEventId;
+                    eventIdSelect.dispatchEvent(new Event('change'));
                 }
             }
-        })
-        .catch(error => console.error('Error fetching events:', error));
+        });
+
+    inputRow.appendChild(eventIdInput);
+    inputRow.appendChild(eventIdSelect);
+    inputRow.appendChild(eventIdSaveButton);
+    eventIdGroup.appendChild(inputRow);
+    formContainer.appendChild(eventIdGroup);
+
+    // Team Number Group with Select
+    const teamNumberGroup = document.createElement('div');
+    teamNumberGroup.className = 'form-group';
+    const teamNumberLabel = document.createElement('label');
+    teamNumberLabel.textContent = 'Team Number';
+    
+    const teamSelect = document.createElement('select');
+    teamSelect.id = 'team-select';
+    teamSelect.required = true;
+    teamSelect.disabled = true;
+    teamSelect.style.width = '100%';
+    teamSelect.innerHTML = '<option value="">Select Team</option>';
+
+    teamNumberGroup.appendChild(teamNumberLabel);
+    teamNumberGroup.appendChild(teamSelect);
+    formContainer.appendChild(teamNumberGroup);
 
     // Rest of form elements
     elements.forEach(element => {
@@ -370,14 +396,14 @@ function renderForm(elements) {
 function handleSubmit(event) {
     event.preventDefault();
 
-    const teamNumber = document.getElementById('team-number').value;
+    const teamNumber = document.getElementById('team-select').value;
     const eventId = document.getElementById('event-id-code').value; // Use hidden input value
     const formGroups = formContainer.querySelectorAll('.form-group');
     const data = [];
 
     formGroups.forEach(group => {
         const input = group.querySelector('input, textarea');
-        if (input && input.id !== 'team-number' && input.id !== 'event-id') {
+        if (input && input.id !== 'team-select' && input.id !== 'event-id') {
             if (input.type === 'checkbox') {
                 data.push(input.checked ? 'true' : 'false');
             } else {

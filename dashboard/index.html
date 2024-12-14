@@ -79,10 +79,32 @@
     const currentUrl = window.location.href;
     const hostDomain = currentUrl.replace('dashboard/', 'code/');
     document.getElementById('otp-link').textContent = hostDomain;
+
+    // Fetch events and handle form generation
+    document.addEventListener('DOMContentLoaded', function() {
+      fetch('/dashboard/today/')
+        .then(response => response.json())
+        .then(data => {
+          if (data.events && data.events.length > 0) {
+            // Store events data globally for form generation
+            window.eventsList = data.events;
+            
+            // Generate the form with event dropdown
+            generateForm();
+            
+            // If there's only one event, select it automatically
+            if (data.events.length === 1) {
+              const eventSelect = document.getElementById('event-select');
+              eventSelect.value = data.events[0].code;
+              eventSelect.dispatchEvent(new Event('change'));
+            }
+          }
+        })
+        .catch(error => console.error('Error fetching events:', error));
+    });
   </script>
 
-<!-- partial -->
-  <script  src="./script.js"></script>
+  <script src="./script.js"></script>
 
 </body>
 </html>

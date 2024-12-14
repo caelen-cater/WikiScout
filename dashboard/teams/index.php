@@ -6,6 +6,12 @@ header('Cache-Control: no-cache, no-store, must-revalidate');
 header('Pragma: no-cache');
 header('Expires: 0');
 
+if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+    http_response_code(405);
+    echo json_encode(['error' => 'Method Not Allowed']);
+    exit;
+}
+
 // Check authentication
 $token = $_COOKIE['auth'] ?? null;
 if (!$token) {
@@ -42,60 +48,46 @@ if ($authHttpCode !== 200) {
     exit;
 }
 
-$authData = json_decode($authResponse, true);
-$teamNumber = $authData['details']['address'] ?? null;
+$eventId = $_GET['event'] ?? null;
 
-if ($teamNumber === null) {
-    http_response_code(501);
-    echo json_encode(['error' => 'Team number not set']);
+if (!$eventId) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Missing event ID']);
     exit;
 }
 
-// Create authorization string
-$auth = base64_encode($username . ':' . $password);
-$currentYear = date('Y');
+// Remove any unwanted characters
+$eventId = preg_replace('/[^a-zA-Z0-9]/', '', $eventId);
 
-// Setup FIRST API request
-$firstApiUrl = "https://ftc-api.firstinspires.org/v2.0/$currentYear/events/";
-$headers = [
-    'Accept: application/json',
-    "Authorization: Basic $auth"
-];
+$season = date("Y");
+$url = "https://ftc-api.firstinspires.org/v2.0/$season/teams?null=null&eventCode=$eventId";
+
+// Create authorization string from config values
+$auth = base64_encode($username . ':' . $password);
 
 $ch = curl_init();
-curl_setopt($ch, CURLOPT_URL, $firstApiUrl);
+curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'Accept: application/json',
+    "Authorization: Basic $auth"
+]);
 
 $response = curl_exec($ch);
 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+$curlError = curl_error($ch);
 curl_close($ch);
 
 if ($httpCode !== 200) {
     http_response_code($httpCode);
-    echo json_encode(['error' => 'Failed to fetch events']);
+    echo json_encode(['error' => 'Failed to fetch teams']);
     exit;
 }
 
 $data = json_decode($response, true);
-$currentTime = time();
-$currentEvents = [];
+$teams = array_map(function($team) {
+    return $team['teamNumber'];
+}, $data['teams'] ?? []);
 
-// Filter for current events
-foreach ($data['events'] as $event) {
-    $startTime = strtotime($event['dateStart']);
-    $endTime = strtotime($event['dateEnd']);
-    
-    if ($currentTime >= $startTime && $currentTime <= $endTime) {
-        $currentEvents[] = [
-            'code' => $event['code'],
-            'name' => $event['name']
-        ];
-    }
-}
-
-echo json_encode([
-    'events' => $currentEvents,
-    'count' => count($currentEvents)
-]);
+echo json_encode(['teams' => $teams]);
 ?>
