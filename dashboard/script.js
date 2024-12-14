@@ -203,6 +203,7 @@ function updateSliderBackground(slider) {
 function renderForm(elements) {
     formContainer.innerHTML = '';
 
+    // Team Number Group
     const teamNumberGroup = document.createElement('div');
     teamNumberGroup.className = 'form-group';
     const teamNumberLabel = document.createElement('label');
@@ -216,31 +217,82 @@ function renderForm(elements) {
     teamNumberGroup.appendChild(teamNumberInput);
     formContainer.appendChild(teamNumberGroup);
 
+    // Event ID Group
     const eventIdGroup = document.createElement('div');
-    eventIdGroup.className = 'form-group';
+    eventIdGroup.className = 'form-group event-group';
     const eventIdLabel = document.createElement('label');
-    eventIdLabel.textContent = 'Event ID';
+    eventIdLabel.textContent = 'Event';
+    eventIdGroup.appendChild(eventIdLabel);
+    
+    const inputRow = document.createElement('div');
+    inputRow.className = 'event-input-row';
+    
     const eventIdInput = document.createElement('input');
-    eventIdInput.type = 'text';
-    eventIdInput.id = 'event-id';
-    eventIdInput.required = true;
+    eventIdInput.type = 'hidden';
+    eventIdInput.id = 'event-id-code';
+
+    const eventIdSelect = document.createElement('select');
+    eventIdSelect.id = 'event-id';
+    eventIdSelect.required = true;
+    eventIdSelect.style.width = '100%';  // Make dropdown take full width
+
     const eventIdSaveButton = document.createElement('button');
     eventIdSaveButton.textContent = 'Save';
     eventIdSaveButton.className = 'btn btn-primary';
-    eventIdSaveButton.style.marginLeft = '10px'; // Add padding
+    eventIdSaveButton.style.margin = '0';
     eventIdSaveButton.addEventListener('click', () => {
-        localStorage.setItem('event', eventIdInput.value);
+        const hiddenInput = document.getElementById('event-id-code');
+        if (hiddenInput.value) {
+            localStorage.setItem('event', hiddenInput.value);
+        }
     });
-    eventIdGroup.appendChild(eventIdLabel);
-    eventIdGroup.appendChild(eventIdInput);
-    eventIdGroup.appendChild(eventIdSaveButton);
+
+    inputRow.appendChild(eventIdInput);
+    inputRow.appendChild(eventIdSelect);
+    inputRow.appendChild(eventIdSaveButton);
+    eventIdGroup.appendChild(inputRow);
     formContainer.appendChild(eventIdGroup);
 
-    const savedEventId = localStorage.getItem('event');
-    if (savedEventId) {
-        eventIdInput.value = savedEventId;
-    }
+    fetch('./today/')
+        .then(response => response.json())
+        .then(data => {
+            const defaultOption = document.createElement('option');
+            defaultOption.value = '';
+            defaultOption.textContent = 'Select an event';
+            eventIdSelect.appendChild(defaultOption);
 
+            // Create an object to store code-name pairs
+            const eventData = {};
+            data.events.forEach(event => {
+                eventData[event.name] = event.code;
+                const option = document.createElement('option');
+                option.value = event.name;
+                option.textContent = event.name;
+                eventIdSelect.appendChild(option);
+            });
+
+            // Handle select changes
+            eventIdSelect.addEventListener('change', () => {
+                const selectedName = eventIdSelect.value;
+                eventIdInput.value = eventData[selectedName] || '';
+            });
+
+            // Set saved event if it exists
+            const savedEventId = localStorage.getItem('event');
+            if (savedEventId) {
+                // Find the event name for the saved code
+                const savedEventName = Object.keys(eventData).find(name => 
+                    eventData[name] === savedEventId
+                );
+                if (savedEventName) {
+                    eventIdSelect.value = savedEventName;
+                    eventIdInput.value = savedEventId;
+                }
+            }
+        })
+        .catch(error => console.error('Error fetching events:', error));
+
+    // Rest of form elements
     elements.forEach(element => {
         const formGroup = document.createElement('div');
         formGroup.className = 'form-group';
@@ -319,7 +371,7 @@ function handleSubmit(event) {
     event.preventDefault();
 
     const teamNumber = document.getElementById('team-number').value;
-    const eventId = document.getElementById('event-id').value;
+    const eventId = document.getElementById('event-id-code').value; // Use hidden input value
     const formGroups = formContainer.querySelectorAll('.form-group');
     const data = [];
 
