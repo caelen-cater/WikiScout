@@ -17,7 +17,7 @@
       <img class="icon" src="https://cirruscdn.com/upload/ehI6NzBJngSc0RCFtfbquow3D" alt="icon" style="width: 2.6em; height: 2.6em; filter: invert(100%);">
     </button>
 
-    <button class="menu__item" style="--bgColorItem: #f54888;" onclick="hideIframe()">
+    <button class="menu__item" style="--bgColorItem: #f54888;" onclick="showLeaderboard()">
       <img class="icon" src="https://cirruscdn.com/upload/mucTx30GY7J1yPAH8fni2jZUW" alt="icon" style="width: 2.6em; height: 2.6em; filter: invert(100%);">
     </button>
 
@@ -68,6 +68,18 @@
         <button id="delete-btn" class="btn btn-danger">Delete</button>
         <button id="regenerate-btn" class="btn btn-primary">Regenerate</button>
     </div>
+  </div>
+
+  <div id="leaderboard-container" class="leaderboard-container"></div>
+  <div id="stats-popup" class="stats-popup" onclick="hideStatsPopup(event)">
+      <div class="stats-content">
+          <div class="stats-row">
+              <div class="stat-box stat-wins">0</div>
+              <div class="stat-box stat-ties">0</div>
+              <div class="stat-box stat-losses">0</div>
+          </div>
+          <div class="matches-played">Matches Played: 0</div>
+      </div>
   </div>
 
   <script>

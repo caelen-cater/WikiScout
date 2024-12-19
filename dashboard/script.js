@@ -47,6 +47,8 @@ function clickItem(item, index) {
     
     if (index === 0) {
         showOtpContainer();
+    } else if (index === 1) {
+        showLeaderboard();
     } else if (index === 3) {
         showFormContainer();
     }
@@ -55,6 +57,8 @@ function clickItem(item, index) {
 function hideAllContainers() {
     hideOtpContainer();
     hideFormContainer();
+    document.getElementById('leaderboard-container').classList.remove('active');
+    document.getElementById('stats-popup').classList.remove('active');
 }
 
 function offsetMenuBorder(element, menuBorder) {
@@ -441,4 +445,97 @@ function handleSubmit(event) {
     .finally(() => {
         submitButton.disabled = false;
     });
+}
+
+function showLeaderboard() {
+    hideAllContainers();
+    const leaderboardContainer = document.getElementById('leaderboard-container');
+    leaderboardContainer.classList.add('active');
+    
+    // Check if this is the first time viewing leaderboard
+    if (!localStorage.getItem('leaderboardMessage')) {
+        showLeaderboardInstructions();
+    }
+    
+    const eventId = document.getElementById('event-id-code')?.value || localStorage.getItem('event');
+    if (eventId) {
+        fetchLeaderboard(eventId);
+    }
+}
+
+function showLeaderboardInstructions() {
+    const container = document.getElementById('leaderboard-container');
+    const instructions = document.createElement('div');
+    instructions.className = 'leaderboard-instructions show';
+    instructions.innerHTML = `
+        <h3>Welcome to the Leaderboard!</h3>
+        <p>Here you can see all teams ranked by their performance.</p>
+        <p>Click on any team to see their detailed stats including wins, ties, and losses.</p>
+        <p>Click anywhere outside the stats popup to close it.</p>
+        <button class="dismiss-btn" onclick="dismissLeaderboardInstructions(this)">Dismiss</button>
+    `;
+    container.insertBefore(instructions, container.firstChild);
+}
+
+function dismissLeaderboardInstructions(button) {
+    localStorage.setItem('leaderboardMessage', 'true');
+    const instructions = button.parentElement;
+    instructions.classList.remove('show');
+    // Remove just the instructions element after animation
+    setTimeout(() => {
+        if (instructions && instructions.parentElement) {
+            instructions.remove();
+        }
+    }, 300);
+    
+    // Ensure the leaderboard data is still shown
+    const eventId = document.getElementById('event-id-code')?.value || localStorage.getItem('event');
+    if (eventId) {
+        fetchLeaderboard(eventId);
+    }
+}
+
+function fetchLeaderboard(eventId) {
+    fetch(`./rankings/?event=${eventId}`)
+        .then(handleApiResponse)
+        .then(data => {
+            const container = document.getElementById('leaderboard-container');
+            // Preserve instructions if they exist
+            const instructions = container.querySelector('.leaderboard-instructions');
+            container.innerHTML = '';
+            if (instructions) {
+                container.appendChild(instructions);
+            }
+            
+            data.rankings.forEach(team => {
+                const item = document.createElement('div');
+                item.className = 'leaderboard-item';
+                item.innerHTML = `
+                    <div class="team-info">${team.teamNumber} - ${team.teamName}</div>
+                    <div class="rank-badge">#${team.rank}</div>
+                `;
+                
+                item.addEventListener('click', () => showStatsPopup(team));
+                container.appendChild(item);
+            });
+        })
+        .catch(error => console.error('Error fetching leaderboard:', error));
+}
+
+function showStatsPopup(team) {
+    const popup = document.getElementById('stats-popup');
+    const content = popup.querySelector('.stats-content');
+    
+    content.querySelector('.stat-wins').textContent = team.wins;
+    content.querySelector('.stat-ties').textContent = team.ties;
+    content.querySelector('.stat-losses').textContent = team.losses;
+    content.querySelector('.matches-played').textContent = `Matches Played: ${team.matchesPlayed}`;
+    
+    popup.classList.add('active');
+}
+
+function hideStatsPopup(event) {
+    if (event.target.classList.contains('stats-popup')) {
+        document.getElementById('stats-popup').classList.remove('active');
+    }
 }
