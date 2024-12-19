@@ -14,25 +14,32 @@ const deleteBtn = document.getElementById('delete-btn');
 const regenerateBtn = document.getElementById('regenerate-btn');
 const formContainer = document.getElementById('form-container');
 
+const apiCache = {
+    matches: {},
+    rankings: {},
+    teams: {},
+    validate: {},
+    today: {},
+    auth: {}
+};
+
+const pendingRequests = {};
+
 function validateSession() {
-    fetch('./validate/', {
+   return cachedFetch('./validate/', {
         method: 'GET'
-    })
-    .then(handleApiResponse)
-    .catch(error => console.error('Error validating session:', error));
+    }).catch(error => console.error('Error validating session:', error));
 }
 
 window.addEventListener('load', () => {
-    validateSession();
-    // Store the user's team number from auth response
-    fetch('./validate/')
-        .then(handleApiResponse)
+    validateSession()
         .then(data => {
             if (data.details?.address) {
                 localStorage.setItem('myTeam', data.details.address);
             }
         })
         .catch(error => console.error('Error fetching user details:', error));
+
     if (menuItems[3].classList.contains('active')) {
         showFormContainer();
     }
@@ -238,8 +245,7 @@ function renderForm(elements) {
     eventIdSelect.required = true;
     eventIdSelect.style.width = '100%';
 
-    fetch('./today/')
-        .then(response => response.json())
+    cachedFetch('./today/')
         .then(data => {
             const defaultOption = document.createElement('option');
             defaultOption.value = '';
@@ -257,6 +263,7 @@ function renderForm(elements) {
 
             // Handle event selection changes with auto-save
             eventIdSelect.addEventListener('change', () => {
+                clearApiCache();
                 const selectedName = eventIdSelect.value;
                 const eventCode = eventData[selectedName] || '';
                 eventIdInput.value = eventCode;
@@ -415,8 +422,7 @@ function updateLeaderboardView(eventId) {
 function updateDataView(eventId) {
     if (document.getElementById('data-container').classList.contains('active')) {
         const teamSelect = document.getElementById('data-team-select');
-        fetch(`/dashboard/teams/?event=${eventId}`)
-            .then(handleApiResponse)
+        cachedFetch(`/dashboard/teams/?event=${eventId}`)
             .then(data => {
                 teamSelect.innerHTML = '<option value="">Select Team</option>';
                 data.teams.sort((a, b) => a - b).forEach(team => {
@@ -497,6 +503,8 @@ function handleSubmit(event) {
     });
 }
 
+let cachedMatches = null;
+
 function showLeaderboard() {
     hideAllContainers();
     const leaderboardContainer = document.getElementById('leaderboard-container');
@@ -509,7 +517,10 @@ function showLeaderboard() {
     
     const eventId = document.getElementById('event-id-code')?.value || localStorage.getItem('event');
     if (eventId) {
-        fetchLeaderboard(eventId);
+        // Single promise chain instead of multiple parallel requests
+        fetchLeaderboard(eventId)
+            .then(() => fetchAllMatches(eventId))
+            .catch(error => console.error('Error fetching leaderboard data:', error));
     }
 }
 
@@ -546,8 +557,7 @@ function dismissLeaderboardInstructions(button) {
 }
 
 function fetchLeaderboard(eventId) {
-    fetch(`./rankings/?event=${eventId}`)
-        .then(handleApiResponse)
+    return cachedFetch(`./rankings/?event=${eventId}`)
         .then(data => {
             const container = document.getElementById('leaderboard-container');
             // Preserve instructions if they exist
@@ -565,29 +575,138 @@ function fetchLeaderboard(eventId) {
                     <div class="rank-badge">#${team.rank}</div>
                 `;
                 
-                item.addEventListener('click', () => showStatsPopup(team));
+                item.addEventListener('click', () => {
+                    showStatsPopup(team);
+                    // Also check for cached matches data
+                    const cacheKey = `./matches/?event=${eventId}`;
+                    if (apiCache.matches[cacheKey]?.data) {
+                        const matches = apiCache.matches[cacheKey].data.matches.filter(match => 
+                            match.red.teams.includes(parseInt(team.teamNumber)) || 
+                            match.blue.teams.includes(parseInt(team.teamNumber))
+                        );
+                        renderMatchResults(matches, parseInt(team.teamNumber));
+                    }
+                });
+                
                 container.appendChild(item);
             });
         })
         .catch(error => console.error('Error fetching leaderboard:', error));
 }
 
+function fetchAllMatches(eventId) {
+    return cachedFetch(`./matches/?event=${eventId}`)
+        .then(data => {
+            cachedMatches = data.matches;
+            return data;
+        });
+}
+
 function showStatsPopup(team) {
     const popup = document.getElementById('stats-popup');
     const content = popup.querySelector('.stats-content');
     
+    content.querySelector('.stats-header').textContent = `${team.teamNumber} - ${team.teamName}`;
     content.querySelector('.stat-wins').textContent = team.wins;
     content.querySelector('.stat-ties').textContent = team.ties;
     content.querySelector('.stat-losses').textContent = team.losses;
     content.querySelector('.matches-played').textContent = `Matches Played: ${team.matchesPlayed}`;
     
     popup.classList.add('active');
+    
+    const eventId = document.getElementById('event-id-code')?.value || localStorage.getItem('event');
+    
+    // Force a fresh fetch of match data if we don't have it cached
+    if (!apiCache.matches[`./matches/?event=${eventId}`]?.data) {
+        fetchAllMatches(eventId).then(data => {
+            const matches = data.matches.filter(match => 
+                match.red.teams.includes(parseInt(team.teamNumber)) || 
+                match.blue.teams.includes(parseInt(team.teamNumber))
+            );
+            renderMatchResults(matches, parseInt(team.teamNumber));
+        });
+    }
 }
 
+function renderRawApiResponse(data) {
+    const container = document.getElementById('raw-api-response-container');
+    container.innerHTML = ''; // Clear previous content
+    const rawResponse = document.createElement('pre');
+    rawResponse.textContent = JSON.stringify(data, null, 2);
+    container.appendChild(rawResponse);
+}
+
+function renderMatchResults(matches, teamNumber) {
+    const container = document.querySelector('.match-results-scroll');
+    container.innerHTML = '';
+
+    matches.sort((a, b) => {
+        if (a.tournamentLevel !== b.tournamentLevel) {
+            return a.tournamentLevel === 'QUALIFICATION' ? -1 : 1;
+        }
+        return a.matchNumber - b.matchNumber;
+    });
+
+    matches.forEach((match, index) => {
+        const matchItem = document.createElement('div');
+        matchItem.className = 'match-result-item';
+        matchItem.dataset.index = index;  // Add index for scrolling
+
+        const teamAlliance = match.red.teams.includes(teamNumber) ? 'red' : 'blue';
+        const opponentAlliance = teamAlliance === 'red' ? 'blue' : 'red';
+
+        matchItem.innerHTML = `
+            <div class="match-label">${match.description}</div>
+            <div class="match-result-scores">
+                <span class="${teamAlliance}-score">${match[teamAlliance].total}</span>
+                <span class="dash">-</span>
+                <span class="${opponentAlliance}-score">${match[opponentAlliance].total}</span>
+            </div>
+            <div class="match-result-details">
+                <div class="value ${teamAlliance}-alliance">${match[teamAlliance].teams.join(' ')}</div>
+                <div class="label">VS</div>
+                <div class="value ${opponentAlliance}-alliance">${match[opponentAlliance].teams.join(' ')}</div>
+            </div>
+            <div class="match-result-details">
+                <div class="value">${match[teamAlliance].auto}</div>
+                <div class="label">Auto</div>
+                <div class="value">${match[opponentAlliance].auto}</div>
+            </div>
+            <div class="match-result-details">
+                <div class="value">${match[teamAlliance].foul}</div>
+                <div class="label">Foul</div>
+                <div class="value">${match[opponentAlliance].foul}</div>
+            </div>
+        `;
+
+        matchItem.addEventListener('click', () => {
+            matchItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+
+        container.appendChild(matchItem);
+    });
+}
+
+// Update hideStatsPopup to properly hide both containers
 function hideStatsPopup(event) {
     if (event.target.classList.contains('stats-popup')) {
         document.getElementById('stats-popup').classList.remove('active');
+        const matchResultsContainer = document.getElementById('match-results-container');
+        matchResultsContainer.classList.remove('active');
+        matchResultsContainer.style.display = 'none';
     }
+}
+
+function fetchMatchResults(teamNumber, eventId) {
+    fetch(`./matches/?event=${eventId}`)
+        .then(handleApiResponse)
+        .then(data => {
+            const matches = data.matches.filter(match => 
+                match.teams.some(team => team.teamNumber === teamNumber)
+            );
+            renderMatchResults(matches, teamNumber);
+        })
+        .catch(error => console.error('Error fetching match results:', error));
 }
 
 function showDataView() {
@@ -689,4 +808,67 @@ function fetchTeamData(teamNumber, eventId) {
                 </div>
             `;
         });
+}
+
+function cachedFetch(url, options = {}) {
+    const cacheKey = url + (options.method || 'GET');
+    
+    // Determine cache category based on URL
+    let cacheCategory = null;
+    if (url.includes('/matches/')) cacheCategory = 'matches';
+    else if (url.includes('/rankings/')) cacheCategory = 'rankings';
+    else if (url.includes('/teams/')) cacheCategory = 'teams';
+    else if (url.includes('/validate/')) cacheCategory = 'validate';
+    else if (url.includes('/today/')) cacheCategory = 'today';
+    else if (url.includes('/auth/')) cacheCategory = 'auth';
+
+    // Different cache durations for different endpoints
+    const cacheDuration = {
+        matches: 300000, // 5 minutes
+        rankings: 300000, // 5 minutes
+        teams: 300000, // 5 minutes
+        validate: 30000, // 30 seconds
+        today: 3600000, // 1 hour
+        auth: 0 // No caching for auth
+    }[cacheCategory] || 0;
+    
+    // Check cache first if we have a cache duration
+    if (cacheDuration && cacheCategory && apiCache[cacheCategory][cacheKey]?.timestamp > Date.now() - cacheDuration) {
+        return Promise.resolve(apiCache[cacheCategory][cacheKey].data);
+    }
+
+    // Check for pending request
+    if (pendingRequests[cacheKey]?.timestamp > Date.now() - 500) {
+        return pendingRequests[cacheKey].promise;
+    }
+
+    // Make new request
+    const requestPromise = fetch(url, options)
+        .then(handleApiResponse)
+        .then(data => {
+            if (cacheDuration && cacheCategory) {
+                apiCache[cacheCategory][cacheKey] = {
+                    data: data,
+                    timestamp: Date.now()
+                };
+            }
+            delete pendingRequests[cacheKey];
+            return data;
+        });
+
+    pendingRequests[cacheKey] = {
+        promise: requestPromise,
+        timestamp: Date.now()
+    };
+
+    return requestPromise;
+}
+
+function clearApiCache() {
+    Object.keys(apiCache).forEach(category => {
+        apiCache[category] = {};
+    });
+    Object.keys(pendingRequests).forEach(key => {
+        delete pendingRequests[key];
+    });
 }

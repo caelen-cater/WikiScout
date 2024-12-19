@@ -73,12 +73,16 @@
   <div id="leaderboard-container" class="leaderboard-container"></div>
   <div id="stats-popup" class="stats-popup" onclick="hideStatsPopup(event)">
       <div class="stats-content">
-          <div class="stats-row">
-              <div class="stat-box stat-wins">0</div>
-              <div class="stat-box stat-ties">0</div>
-              <div class="stat-box stat-losses">0</div>
+          <div class="stats-fixed-header">
+              <div class="stats-header"></div>
+              <div class="stats-row">
+                  <div class="stat-box stat-wins">0</div>
+                  <div class="stat-box stat-ties">0</div>
+                  <div class="stat-box stat-losses">0</div>
+              </div>
+              <div class="matches-played">Matches Played: 0</div>
           </div>
-          <div class="matches-played">Matches Played: 0</div>
+          <div class="match-results-scroll"></div>
       </div>
   </div>
 
@@ -91,6 +95,8 @@
     </div>
     <div id="data-content"></div>
   </div>
+
+  <div id="match-results-container" class="match-results-container"></div>
 
   <script>
     function hideIframe() {
