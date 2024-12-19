@@ -6,59 +6,108 @@ header('Cache-Control: no-cache, no-store, must-revalidate');
 header('Pragma: no-cache');
 header('Expires: 0');
 
-if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
-    http_response_code(405);
-    echo json_encode(['error' => 'Method Not Allowed']);
+// Check authentication
+$token = $_COOKIE['auth'] ?? null;
+if (!$token) {
+    http_response_code(401);
+    echo json_encode(['error' => 'Unauthorized']);
     exit;
 }
 
-$eventId = $_GET['event_id'] ?? 'USMNSAQ1';
-$season = date("Y");
+// Get parameters
+$teamNumber = $_GET['team'] ?? null;
+$eventCode = $_GET['event'] ?? null;
 
-$dbUrl = "https://$server/v2/data/database/?db=WikiScout-$season-$eventId";
-$dbHeaders = [
-    "Authorization: Bearer $apikey"
+if (!$teamNumber || !$eventCode) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Team number and event code are required']);
+    exit;
+}
+
+// Validate user authentication
+$authUrl = "https://$server/v2/auth/user/";
+$authHeaders = [
+    "Authorization: Bearer $apikey",
+    "Token: $token"
 ];
 
-$dbCh = curl_init();
-curl_setopt($dbCh, CURLOPT_URL, $dbUrl);
-curl_setopt($dbCh, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($dbCh, CURLOPT_HTTPHEADER, $dbHeaders);
+$authCh = curl_init();
+curl_setopt($authCh, CURLOPT_URL, $authUrl);
+curl_setopt($authCh, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($authCh, CURLOPT_HTTPHEADER, $authHeaders);
 
-$dbResponse = curl_exec($dbCh);
-$dbHttpCode = curl_getinfo($dbCh, CURLINFO_HTTP_CODE);
-curl_close($dbCh);
+$authResponse = curl_exec($authCh);
+$authHttpCode = curl_getinfo($authCh, CURLINFO_HTTP_CODE);
+curl_close($authCh);
 
-if ($dbHttpCode !== 200) {
-    http_response_code($dbHttpCode);
-    echo $dbResponse;
+if ($authHttpCode !== 200) {
+    http_response_code($authHttpCode);
+    echo json_encode(['error' => 'Authentication failed']);
     exit;
 }
 
-$dbData = json_decode($dbResponse, true);
-$entries = $dbData['data']["WikiScout-$season-$eventId"] ?? [];
+$authData = json_decode($authResponse, true);
+$scoutingTeam = $authData['details']['address'] ?? null;
 
-$table = "Team Number | Mecanum Drive Train | Driver Practice | High Basket | High Chamber | Hang | Auto Points | Extra Data\n";
-$table .= str_repeat("-", 100) . "\n";
+$season = date("Y");
+$dbHeaders = ["Authorization: Bearer $apikey"];
 
-foreach ($entries as $teamNumber => $scoutData) {
-    foreach ($scoutData as $scoutingTeam => $data) {
-        $values = explode('|', $data);
-        if (count($values) === 7) { // Only include correctly formatted data
-            $table .= sprintf(
-                "%11s | %19s | %14s | %11s | %12s | %4s | %11s | %s\n",
-                $teamNumber,
-                $values[0],
-                $values[1],
-                $values[2],
-                $values[3],
-                $values[4],
-                $values[5],
-                $values[6]
-            );
-        }
-    }
+// Fetch private data
+$privateDbUrl = "https://$server/v2/data/database/?db=WikiScout-$season-$eventCode&log=$scoutingTeam-private&entry=$teamNumber";
+$ch = curl_init();
+curl_setopt($ch, CURLOPT_URL, $privateDbUrl);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_HTTPHEADER, $dbHeaders);
+$privateResponse = curl_exec($ch);
+$privateHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+
+// Fetch public data
+$publicDbUrl = "https://$server/v2/data/database/?db=WikiScout-$season-$eventCode&log=$teamNumber-public";
+$ch = curl_init();
+curl_setopt($ch, CURLOPT_URL, $publicDbUrl);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_HTTPHEADER, $dbHeaders);
+$publicResponse = curl_exec($ch);
+$publicHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+
+// Add error checking
+if ($privateHttpCode !== 200 || $publicHttpCode !== 200) {
+    http_response_code(500);
+    echo json_encode([
+        'error' => 'Database fetch failed',
+        'private_status' => $privateHttpCode,
+        'public_status' => $publicHttpCode,
+        'private_url' => $privateDbUrl,
+        'public_url' => $publicDbUrl
+    ]);
+    exit;
 }
 
-echo json_encode(['table' => $table]);
+// Read form configuration
+$formConfig = file_get_contents('../../form.dat');
+$formFields = array_map(function($line) {
+    $matches = [];
+    preg_match('/"([^"]+)"/', $line, $matches);
+    return $matches[1] ?? '';
+}, explode("\n", $formConfig));
+
+// Clean and parse responses
+function cleanResponse($response) {
+    $jsonStart = strpos($response, '{');
+    if ($jsonStart !== false) {
+        $response = substr($response, $jsonStart);
+    }
+    return json_decode($response, true);
+}
+
+$privateData = cleanResponse($privateResponse);
+$publicData = cleanResponse($publicResponse);
+
+echo json_encode([
+    'fields' => $formFields,
+    'private_data' => cleanResponse($privateResponse),
+    'public_data' => cleanResponse($publicResponse)
+]);
 ?>
