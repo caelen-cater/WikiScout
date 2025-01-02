@@ -46,10 +46,14 @@ if ($authHttpCode !== 200) {
 
 // Create authorization string for FIRST API
 $auth = base64_encode($username . ':' . $password);
-$currentYear = date('Y');
+
+// Determine season year based on current month
+$currentMonth = (int)date('n'); // 1-12
+$currentYear = (int)date('Y');
+$seasonYear = ($currentMonth >= 9) ? $currentYear : $currentYear - 1;
 
 // Setup FIRST API request for rankings
-$rankingsUrl = "https://ftc-api.firstinspires.org/v2.0/$currentYear/rankings/$eventCode?teamNumber=0&top=0";
+$rankingsUrl = "https://ftc-api.firstinspires.org/v2.0/$seasonYear/rankings/$eventCode?teamNumber=0&top=0";
 $headers = [
     'Accept: application/json',
     "Authorization: Basic $auth"

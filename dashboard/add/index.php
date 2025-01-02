@@ -94,7 +94,10 @@ foreach ($privateFieldIndexes as $index) {
     }
 }
 
-$season = date("Y");
+$currentMonth = (int)date('n'); // 1-12
+$currentYear = (int)date('Y');
+$seasonYear = ($currentMonth >= 9) ? $currentYear : $currentYear - 1;
+
 $eventCode = $eventId;
 
 // Save public data
@@ -103,7 +106,7 @@ $dbHeaders = [
     "Authorization: Bearer $apikey"
 ];
 $publicDbData = [
-    'db' => "WikiScout-$season-$eventCode",
+    'db' => "WikiScout-$seasonYear-$eventCode",
     'log' => $teamNumber . "-public",
     'entry' => $scoutingTeamNumber,
     'value' => implode('|', $publicData)
@@ -122,7 +125,7 @@ curl_close($dbCh);
 
 // Save private data
 $privateDbData = [
-    'db' => "WikiScout-$season-$eventCode",
+    'db' => "WikiScout-$seasonYear-$eventCode",
     'log' => $scoutingTeamNumber . "-private",
     'entry' => $teamNumber,
     'value' => $data

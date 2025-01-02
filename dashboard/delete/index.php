@@ -1,1 +1,0 @@
-// Allow admins to delete scout data

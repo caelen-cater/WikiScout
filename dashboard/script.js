@@ -199,6 +199,47 @@ function hideFormContainer() {
 }
 
 function fetchFormData() {
+    // First check if user is at an event
+    fetch('./me/')
+        .then(handleApiResponse)
+        .then(data => {
+            const eventDisplay = document.getElementById('event-id');
+            const eventInput = document.getElementById('event-id-code');
+            
+            if (data.found && eventDisplay && eventInput) {
+                // Store event info
+                localStorage.setItem('event', data.event.code);
+                localStorage.setItem('eventName', data.event.name);
+                
+                eventDisplay.value = data.event.name;
+                eventInput.value = data.event.code;
+                eventDisplay.classList.add('at-event');
+                eventDisplay.classList.remove('no-event');
+            } else if (eventDisplay) {
+                // Clear storage
+                localStorage.removeItem('event');
+                localStorage.removeItem('eventName');
+                
+                eventDisplay.value = data.message || 'Not currently at any event';
+                eventDisplay.classList.add('no-event');
+                eventDisplay.classList.remove('at-event');
+                
+                if (eventInput) {
+                    eventInput.value = '';
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching event data:', error);
+            const eventDisplay = document.getElementById('event-id');
+            if (eventDisplay) {
+                eventDisplay.value = 'Error loading event info';
+                eventDisplay.classList.add('no-event');
+                eventDisplay.classList.remove('at-event');
+            }
+        });
+
+    // Continue with form data fetch
     fetch('../../form.dat')
         .then(response => response.text())
         .then(data => {
@@ -240,83 +281,16 @@ function renderForm(elements) {
     eventIdInput.type = 'hidden';
     eventIdInput.id = 'event-id-code';
 
-    const eventIdSelect = document.createElement('select');
-    eventIdSelect.id = 'event-id';
-    eventIdSelect.required = true;
-    eventIdSelect.style.width = '100%';
-
-    cachedFetch('./today/')
-        .then(data => {
-            const defaultOption = document.createElement('option');
-            defaultOption.value = '';
-            defaultOption.textContent = 'Select an event';
-            eventIdSelect.appendChild(defaultOption);
-
-            const eventData = {};
-            data.events.forEach(event => {
-                eventData[event.name] = event.code;
-                const option = document.createElement('option');
-                option.value = event.name;
-                option.textContent = event.name;
-                eventIdSelect.appendChild(option);
-            });
-
-            // Handle event selection changes with auto-save
-            eventIdSelect.addEventListener('change', () => {
-                clearApiCache();
-                const selectedName = eventIdSelect.value;
-                const eventCode = eventData[selectedName] || '';
-                eventIdInput.value = eventCode;
-                
-                if (eventCode) {
-                    localStorage.setItem('event', eventCode);
-                    // Trigger updates for other views
-                    updateLeaderboardView(eventCode);
-                    updateDataView(eventCode);
-                }
-                
-                // Update team select when event changes
-                const teamSelect = document.getElementById('team-select');
-                if (eventCode) {
-                    fetch(`/dashboard/teams/?event=${eventCode}`)
-                        .then(response => response.json())
-                        .then(data => {
-                            teamSelect.innerHTML = '<option value="">Select Team</option>';
-                            data.teams.sort((a, b) => a - b).forEach(team => {
-                                const option = document.createElement('option');
-                                option.value = team;
-                                option.textContent = team;
-                                teamSelect.appendChild(option);
-                            });
-                            teamSelect.disabled = false;
-                        })
-                        .catch(error => {
-                            console.error('Error fetching teams:', error);
-                            teamSelect.disabled = true;
-                            teamSelect.innerHTML = '<option value="">Error loading teams</option>';
-                        });
-                } else {
-                    teamSelect.disabled = true;
-                    teamSelect.innerHTML = '<option value="">Select Team</option>';
-                }
-            });
-
-            // Set saved event if it exists
-            const savedEventId = localStorage.getItem('event');
-            if (savedEventId) {
-                const savedEventName = Object.keys(eventData).find(name => 
-                    eventData[name] === savedEventId
-                );
-                if (savedEventName) {
-                    eventIdSelect.value = savedEventName;
-                    eventIdInput.value = savedEventId;
-                    eventIdSelect.dispatchEvent(new Event('change'));
-                }
-            }
-        });
+    const eventDisplay = document.createElement('input');
+    eventDisplay.type = 'text';
+    eventDisplay.id = 'event-id';
+    eventDisplay.className = 'event-display';
+    eventDisplay.readOnly = true;
+    eventDisplay.style.width = '100%';
+    eventDisplay.value = 'Loading event info...';
 
     inputRow.appendChild(eventIdInput);
-    inputRow.appendChild(eventIdSelect);
+    inputRow.appendChild(eventDisplay);
     eventIdGroup.appendChild(inputRow);
     formContainer.appendChild(eventIdGroup);
 
@@ -728,72 +702,79 @@ function fetchTeamData(teamNumber, eventId) {
         .then(data => {
             const container = document.getElementById('data-content');
             container.innerHTML = '';
+            let hasContent = false;
 
-            // Your team's data section
+            // Your team's private data section first
             if (data.private_data?.data) {
                 const privateSection = document.createElement('div');
                 privateSection.className = 'data-section';
                 privateSection.innerHTML = `<h3>Your Scouting Data</h3>`;
                 
-                if (typeof data.private_data.data === 'string') {
-                    const entry = document.createElement('div');
-                    entry.className = 'data-entry';
-                    
-                    const fieldValues = data.private_data.data.split('|');
-                    data.fields.forEach((field, index) => {
-                        entry.innerHTML += `
-                            <div class="field-value">
-                                <span>${field}:</span>
-                                <span>${fieldValues[index] || 'N/A'}</span>
-                            </div>
-                        `;
-                    });
-                    privateSection.appendChild(entry);
-                }
+                const entryDiv = document.createElement('div');
+                entryDiv.className = 'data-entry';
+                
+                const fieldValues = data.private_data.data.split('|');
+                data.fields.forEach((field, index) => {
+                    entryDiv.innerHTML += `
+                        <div class="field-value">
+                            <span>${field}:</span>
+                            <span>${fieldValues[index] || 'N/A'}</span>
+                        </div>
+                    `;
+                });
+                privateSection.appendChild(entryDiv);
                 container.appendChild(privateSection);
+                hasContent = true;
             }
 
-            // Divider - only show if there's public data
-            const hasPublicData = data.public_data?.data && 
-                Object.entries(data.public_data.data).some(([logName, entries]) => {
-                    const scoutingTeam = logName.split('-')[0];
-                    // Filter out self-scouting and data from requesting team
-                    return scoutingTeam !== teamNumber && scoutingTeam !== localStorage.getItem('myTeam');
-                });
+            // Other teams' data section
+            if (data.public_data?.data) {
+                const myTeam = localStorage.getItem('myTeam');
+                let hasPublicData = false;
 
-            if (hasPublicData) {
-                container.innerHTML += '<div class="data-divider"></div>';
-
-                // Public data sections grouped by scouting team
-                Object.entries(data.public_data.data).forEach(([logName, entries]) => {
-                    const scoutingTeam = logName.split('-')[0];
-                    
-                    // Skip if the scouting team is the requested team or the current user's team
-                    if (scoutingTeam === teamNumber || scoutingTeam === localStorage.getItem('myTeam')) {
-                        return;
-                    }
-
-                    const publicSection = document.createElement('div');
-                    publicSection.className = 'data-section';
-                    publicSection.innerHTML = `<h3>Scouted by Team ${scoutingTeam}</h3>`;
-                    
-                    entries.forEach((value) => {
-                        const entry = document.createElement('div');
-                        entry.className = 'data-entry';
+                Object.entries(data.public_data.data).forEach(([teamId, teamEntries]) => {
+                    Object.entries(teamEntries).forEach(([scoutingTeam, entryData]) => {
+                        if (scoutingTeam === myTeam || teamId.split('-')[0] === myTeam) return;
                         
-                        const fieldValues = value.split('|');
+                        if (!hasPublicData && hasContent) {
+                            const divider = document.createElement('div');
+                            divider.className = 'data-divider';
+                            container.appendChild(divider);
+                            hasPublicData = true;
+                        }
+
+                        const publicSection = document.createElement('div');
+                        publicSection.className = 'data-section';
+                        publicSection.innerHTML = `<h3>Scouted by Team ${scoutingTeam}</h3>`;
+                        
+                        const entryDiv = document.createElement('div');
+                        entryDiv.className = 'data-entry';
+                        
+                        const fieldValues = entryData.split('|');
                         data.fields.forEach((field, index) => {
-                            entry.innerHTML += `
+                            // Display all fields regardless of their content
+                            entryDiv.innerHTML += `
                                 <div class="field-value">
                                     <span>${field}:</span>
                                     <span>${fieldValues[index] || 'N/A'}</span>
                                 </div>
                             `;
                         });
-                        publicSection.appendChild(entry);
+                        publicSection.appendChild(entryDiv);
+                        container.appendChild(publicSection);
+                        hasContent = true;
                     });
-                    container.appendChild(publicSection);
                 });
+            }
+
+            if (!hasContent) {
+                container.innerHTML = `
+                    <div class="data-section">
+                        <div class="data-entry">
+                            <p style="text-align: center; color: #666;">No scouting data available for this team.</p>
+                        </div>
+                    </div>
+                `;
             }
         })
         .catch(error => {

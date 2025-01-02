@@ -51,12 +51,16 @@ if ($teamNumber === null) {
     exit;
 }
 
+// Determine season year based on current month
+$currentMonth = (int)date('n'); // 1-12
+$currentYear = (int)date('Y');
+$seasonYear = ($currentMonth >= 9) ? $currentYear : $currentYear - 1;
+
 // Create authorization string
 $auth = base64_encode($username . ':' . $password);
-$currentYear = date('Y');
 
 // Setup FIRST API request
-$firstApiUrl = "https://ftc-api.firstinspires.org/v2.0/$currentYear/events/";
+$firstApiUrl = "https://ftc-api.firstinspires.org/v2.0/$seasonYear/events/";
 $headers = [
     'Accept: application/json',
     "Authorization: Basic $auth"

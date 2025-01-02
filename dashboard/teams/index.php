@@ -59,8 +59,12 @@ if (!$eventId) {
 // Remove any unwanted characters
 $eventId = preg_replace('/[^a-zA-Z0-9]/', '', $eventId);
 
-$season = date("Y");
-$url = "https://ftc-api.firstinspires.org/v2.0/$season/teams?null=null&eventCode=$eventId";
+// Determine season year based on current month
+$currentMonth = (int)date('n'); // 1-12
+$currentYear = (int)date('Y');
+$seasonYear = ($currentMonth >= 9) ? $currentYear : $currentYear - 1;
+
+$url = "https://ftc-api.firstinspires.org/v2.0/$seasonYear/teams?null=null&eventCode=$eventId";
 
 // Create authorization string from config values
 $auth = base64_encode($username . ':' . $password);

@@ -49,11 +49,15 @@ if ($authHttpCode !== 200) {
 $authData = json_decode($authResponse, true);
 $scoutingTeam = $authData['details']['address'] ?? null;
 
-$season = date("Y");
+// Determine season year based on current month
+$currentMonth = (int)date('n'); // 1-12
+$currentYear = (int)date('Y');
+$seasonYear = ($currentMonth >= 9) ? $currentYear : $currentYear - 1;
+
 $dbHeaders = ["Authorization: Bearer $apikey"];
 
 // Fetch private data
-$privateDbUrl = "https://$server/v2/data/database/?db=WikiScout-$season-$eventCode&log=$scoutingTeam-private&entry=$teamNumber";
+$privateDbUrl = "https://$server/v2/data/database/?db=WikiScout-$seasonYear-$eventCode&log=$scoutingTeam-private&entry=$teamNumber";
 $ch = curl_init();
 curl_setopt($ch, CURLOPT_URL, $privateDbUrl);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -63,7 +67,7 @@ $privateHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 curl_close($ch);
 
 // Fetch public data
-$publicDbUrl = "https://$server/v2/data/database/?db=WikiScout-$season-$eventCode&log=$teamNumber-public";
+$publicDbUrl = "https://$server/v2/data/database/?db=WikiScout-$seasonYear-$eventCode&log=$teamNumber-public";
 $ch = curl_init();
 curl_setopt($ch, CURLOPT_URL, $publicDbUrl);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
