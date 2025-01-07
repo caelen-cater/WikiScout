@@ -6,8 +6,46 @@ header('Cache-Control: no-cache, no-store, must-revalidate');
 header('Pragma: no-cache');
 header('Expires: 0');
 
+function logError($message, $code, $trace, $userId, $severity, $metadata) {
+    global $server, $apikey, $webhook;
+
+    // Remove backslashes from webhook URL
+    $cleanWebhook = str_replace('\\', '', $webhook);
+
+    $errorData = [
+        'message' => $message,
+        'code' => $code,
+        'trace' => $trace,
+        'user_id' => $userId,
+        'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+        'agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
+        'device_info' => php_uname(),
+        'server' => $_SERVER['SERVER_NAME'] ?? 'unknown',
+        'request_url' => $_SERVER['REQUEST_URI'] ?? 'unknown',
+        'request_method' => $_SERVER['REQUEST_METHOD'] ?? 'unknown',
+        'request_headers' => json_encode(getallheaders()),
+        'request_parameters' => json_encode($_GET),
+        'request_body' => file_get_contents('php://input'),
+        'metadata' => json_encode($metadata),
+        'severity' => $severity,
+        'webhook_url' => addslashes($cleanWebhook),
+        'webhook_content' => "An error (:error_id) occurred with :trace by user :user_id with error ':message' and code :code at :timestamp"
+    ];
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, "https://$server/v2/data/error/");
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ["Authorization: Bearer $apikey"]);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($errorData));
+
+    curl_exec($ch);
+    curl_close($ch);
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
+    logError('Method Not Allowed', 405, __FILE__ . ':' . __LINE__, null, 'medium', []);
     echo json_encode(['error' => 'Method Not Allowed']);
     exit;
 }
@@ -18,6 +56,7 @@ $data = $_POST['data'] ?? null;
 
 if (!$teamNumber || !$eventId || !$data) {
     http_response_code(400);
+    logError('Missing parameters', 400, __FILE__ . ':' . __LINE__, null, 'medium', compact('teamNumber', 'eventId', 'data'));
     echo json_encode(['error' => 'Missing parameters']);
     exit;
 }
@@ -30,6 +69,7 @@ $data = str_replace(["\r", "\n"], '', $data);
 $token = $_COOKIE['auth'] ?? null;
 if (!$token) {
     http_response_code(401);
+    logError('Unauthorized', 401, __FILE__ . ':' . __LINE__, null, 'high', []);
     echo json_encode(['error' => 'Unauthorized']);
     exit;
 }
@@ -51,6 +91,7 @@ curl_close($authCh);
 
 if ($authHttpCode !== 200) {
     http_response_code($authHttpCode);
+    logError('Authentication failed', $authHttpCode, __FILE__ . ':' . __LINE__, null, 'high', []);
     echo $authResponse;
     exit;
 }
@@ -61,6 +102,7 @@ $scoutingTeamNumber = $authData['details']['address'] ?? null;
 
 if (!$userId || !$scoutingTeamNumber) {
     http_response_code(500);
+    logError('Failed to retrieve user ID or scouting team number', 500, __FILE__ . ':' . __LINE__, $userId, 'urgent', []);
     echo json_encode(['error' => 'Failed to retrieve user ID or scouting team number']);
     exit;
 }
@@ -148,6 +190,10 @@ if ($publicDbHttpCode === 200 && $privateDbHttpCode === 200) {
     echo json_encode(['success' => true]);
 } else {
     http_response_code(500);
+    logError('Database operation failed', 500, __FILE__ . ':' . __LINE__, $userId, 'urgent', [
+        'public_status' => $publicDbHttpCode,
+        'private_status' => $privateDbHttpCode
+    ]);
     echo json_encode([
         'error' => 'Database operation failed',
         'public_status' => $publicDbHttpCode,

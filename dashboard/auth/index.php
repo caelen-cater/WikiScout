@@ -6,6 +6,40 @@ header("Cache-Control: no-cache, no-store, must-revalidate");
 header("Pragma: no-cache");
 header("Expires: 0");
 
+function logError($message, $code, $trace, $userId, $ip, $agent, $deviceInfo, $requestUrl, $requestMethod, $requestHeaders, $requestParameters, $requestBody, $metadata, $severity) {
+    global $server, $apikey, $webhook;
+
+    $errorUrl = "https://$server/v2/data/error/";
+    $errorHeaders = [
+        "Authorization: Bearer $apikey",
+        "Content-Type: application/json"
+    ];
+    $errorBody = json_encode([
+        'message' => $message,
+        'code' => $code,
+        'trace' => $trace,
+        'user_id' => $userId,
+        'ip' => $ip,
+        'agent' => $agent,
+        'device_info' => $deviceInfo,
+        'server' => $server,
+        'request_url' => $requestUrl,
+        'request_method' => $requestMethod,
+        'request_headers' => $requestHeaders,
+        'request_parameters' => $requestParameters,
+        'request_body' => $requestBody,
+        'metadata' => $metadata,
+        'severity' => $severity
+    ]);
+
+    makeApiRequest($errorUrl, $errorHeaders, $errorBody);
+
+    // Send webhook notification
+    $webhookContent = "An error ($code) occurred with $trace by user $userId with error '$message' and code $code at " . date('Y-m-d H:i:s');
+    $webhookBody = json_encode(['content' => $webhookContent]);
+    makeApiRequest($webhook, ['Content-Type: application/json'], $webhookBody);
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     if (!isset($_COOKIE['auth'])) {
         http_response_code(400);
@@ -27,11 +61,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $userData = json_decode($userResponse['response'], true);
 
     if ($userResponse['http_code'] === 401) {
+        logError('Unauthorized access', 401, __FILE__ . ':' . __LINE__, $userData['user']['id'], $_SERVER['REMOTE_ADDR'], $_SERVER['HTTP_USER_AGENT'], '', $_SERVER['REQUEST_URI'], 'GET', getallheaders(), $_GET, '', [], 'high');
         http_response_code(401);
         exit;
     }
 
     if ($userResponse['http_code'] !== 200) {
+        logError('Failed to fetch user info', $userResponse['http_code'], __FILE__ . ':' . __LINE__, $userData['user']['id'], $_SERVER['REMOTE_ADDR'], $_SERVER['HTTP_USER_AGENT'], '', $_SERVER['REQUEST_URI'], 'GET', getallheaders(), $_GET, '', [], 'medium');
         http_response_code($userResponse['http_code']);
         exit;
     }
@@ -61,6 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $authResponse = makeApiRequest($authUrl, $authHeaders);
 
     if ($authResponse['http_code'] !== 200) {
+        logError('Failed to authenticate user', $authResponse['http_code'], __FILE__ . ':' . __LINE__, '', $_SERVER['REMOTE_ADDR'], $_SERVER['HTTP_USER_AGENT'], '', $_SERVER['REQUEST_URI'], 'POST', getallheaders(), $_POST, '', [], 'high');
         http_response_code($authResponse['http_code']);
         exit;
     }
@@ -81,6 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $updateResponse = makeApiRequest($updateUrl, $updateHeaders, json_encode($updateBody));
 
     if ($updateResponse['http_code'] !== 200) {
+        logError('Failed to update user info', $updateResponse['http_code'], __FILE__ . ':' . __LINE__, '', $_SERVER['REMOTE_ADDR'], $_SERVER['HTTP_USER_AGENT'], '', $_SERVER['REQUEST_URI'], 'POST', getallheaders(), $_POST, json_encode($updateBody), [], 'medium');
         http_response_code($updateResponse['http_code']);
         exit;
     }
@@ -125,6 +163,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
     $updateResponse = makeApiRequest($updateUrl, $updateHeaders, json_encode($updateBody));
 
     if ($updateResponse['http_code'] !== 200) {
+        logError('Failed to clear OTP', $updateResponse['http_code'], __FILE__ . ':' . __LINE__, '', $_SERVER['REMOTE_ADDR'], $_SERVER['HTTP_USER_AGENT'], '', $_SERVER['REQUEST_URI'], 'DELETE', getallheaders(), $_GET, json_encode($updateBody), [], 'medium');
         http_response_code($updateResponse['http_code']);
         exit;
     }
@@ -138,6 +177,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
 
     $deleteResponse = makeApiRequest($deleteUrl, $deleteHeaders);
     if ($deleteResponse['http_code'] !== 200) {
+        logError('Failed to remove OTP from database', $deleteResponse['http_code'], __FILE__ . ':' . __LINE__, '', $_SERVER['REMOTE_ADDR'], $_SERVER['HTTP_USER_AGENT'], '', $_SERVER['REQUEST_URI'], 'DELETE', getallheaders(), $_GET, '', [], 'medium');
         http_response_code($deleteResponse['http_code']);
         exit;
     }
