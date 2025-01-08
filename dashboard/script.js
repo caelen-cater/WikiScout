@@ -25,10 +25,47 @@ const apiCache = {
 
 const pendingRequests = {};
 
+// Get the base dashboard URL
+const dashboardUrl = window.location.origin + '/dashboard/';
+
+function trackInsight(data) {
+    // Determine if this is an API request or page switch
+    const isApiRequest = data.trace?.startsWith('/');
+    const referrer = isApiRequest ? 
+        window.location.origin + data.trace : 
+        dashboardUrl;
+
+    const headers = new Headers({
+        'X-Action-Message': data.message,
+        'X-Metadata': JSON.stringify(data.metadata || {})
+    });
+
+    return fetch('../insight/', {
+        method: 'GET',
+        headers: headers,
+        // Add referrer header for proper tracking
+        referrer: referrer,
+        referrerPolicy: 'strict-origin-when-cross-origin'
+    }).catch(error => console.error('Error tracking insight:', error));
+}
+
 function validateSession() {
-   return cachedFetch('./validate/', {
+    trackInsight({
+        message: 'Session validation',
+        method: 'GET',
+        trace: '/workspaces/WikiScout/dashboard/validate/index.php'
+    });
+
+    return cachedFetch('./validate/', {
         method: 'GET'
-    }).catch(error => console.error('Error validating session:', error));
+    }).catch(error => {
+        console.error('Error validating session:', error);
+        trackInsight({
+            message: 'Session validation failed',
+            code: 500,
+            metadata: { error: error.message }
+        });
+    });
 }
 
 window.addEventListener('load', () => {
@@ -46,6 +83,11 @@ window.addEventListener('load', () => {
 });
 
 function clickItem(item, index) {
+    trackInsight({
+        message: 'Menu item clicked',
+        metadata: { menuIndex: index }
+    });
+
     validateSession();
     menu.style.removeProperty("--timeOut");
     
@@ -115,6 +157,12 @@ function handleApiResponse(response) {
 }
 
 function fetchOtpCode() {
+    trackInsight({
+        message: 'Fetching OTP code',
+        method: 'GET',
+        trace: '/workspaces/WikiScout/dashboard/auth/index.php'
+    });
+
     fetch('./auth/', {
         method: 'GET'
     })
@@ -129,6 +177,12 @@ function fetchOtpCode() {
 }
 
 deleteBtn.addEventListener('click', () => {
+    trackInsight({
+        message: 'OTP deletion requested',
+        method: 'DELETE',
+        trace: '/auth/'
+    });
+
     deleteBtn.disabled = true;
     regenerateBtn.disabled = true;
     fetch('./auth/', {
@@ -148,6 +202,12 @@ deleteBtn.addEventListener('click', () => {
 });
 
 regenerateBtn.addEventListener('click', () => {
+    trackInsight({
+        message: 'OTP regeneration requested',
+        method: 'POST',
+        trace: '/auth/'
+    });
+
     deleteBtn.disabled = true;
     regenerateBtn.disabled = true;
     fetch('./auth/', {
@@ -199,6 +259,12 @@ function hideFormContainer() {
 }
 
 function fetchFormData() {
+    trackInsight({
+        message: 'Form data requested',
+        method: 'GET',
+        trace: '/workspaces/WikiScout/dashboard/form/index.php'
+    });
+
     // First check if user is at an event
     fetch('./me/')
         .then(handleApiResponse)
@@ -415,7 +481,6 @@ function updateDataView(eventId) {
     }
 }
 
-// Update showDataView function to properly populate teams
 function showDataView() {
     hideAllContainers();
     const dataContainer = document.getElementById('data-container');
@@ -427,7 +492,162 @@ function showDataView() {
     }
 }
 
+function fetchTeamData(teamNumber, eventId) {
+    if (!teamNumber || !eventId) return;
+    
+    // Fetch team ranking
+    fetch(`./rankings/?event=${eventId}`)
+        .then(handleApiResponse)
+        .then(rankingsData => {
+            const teamRank = rankingsData.rankings.find(t => t.teamNumber == teamNumber)?.rank || 'N/A';
+
+            fetch(`./view/?team=${teamNumber}&event=${eventId}`)
+                .then(handleApiResponse)
+                .then(data => {
+                    const container = document.getElementById('data-content');
+                    container.innerHTML = '';
+                    let hasContent = false;
+
+                    // Display team info and match history button
+                    const teamInfoContainer = document.createElement('div');
+                    teamInfoContainer.className = 'team-info-container';
+                    teamInfoContainer.innerHTML = `
+                        <div class="team-info">
+                            <span class="rank-badge">#${teamRank}</span>
+                            Team ${teamNumber}
+                        </div>
+                        <button class="match-history-btn" onclick="showMatchHistory(${teamNumber}, '${eventId}')">Match History</button>
+                    `;
+                    container.appendChild(teamInfoContainer);
+
+                    // Your team's private data section first
+                    if (data.private_data?.data) {
+                        const privateSection = document.createElement('div');
+                        privateSection.className = 'data-section';
+                        privateSection.innerHTML = `<h3>Your Scouting Data</h3>`;
+                        
+                        const entryDiv = document.createElement('div');
+                        entryDiv.className = 'data-entry';
+                        
+                        const fieldValues = data.private_data.data.split('|');
+                        data.fields.forEach((field, index) => {
+                            entryDiv.innerHTML += `
+                                <div class="field-value">
+                                    <span>${field}:</span>
+                                    <span>${fieldValues[index] || 'N/A'}</span>
+                                </div>
+                            `;
+                        });
+                        privateSection.appendChild(entryDiv);
+                        container.appendChild(privateSection);
+                        hasContent = true;
+                    }
+
+                    // Other teams' data section
+                    if (data.public_data?.data) {
+                        const myTeam = localStorage.getItem('myTeam');
+                        let hasPublicData = false;
+
+                        Object.entries(data.public_data.data).forEach(([teamId, teamEntries]) => {
+                            Object.entries(teamEntries).forEach(([scoutingTeam, entryData]) => {
+                                if (scoutingTeam === myTeam || teamId.split('-')[0] === myTeam) return;
+                                
+                                if (!hasPublicData && hasContent) {
+                                    const divider = document.createElement('div');
+                                    divider.className = 'data-divider';
+                                    container.appendChild(divider);
+                                    hasPublicData = true;
+                                }
+
+                                const publicSection = document.createElement('div');
+                                publicSection.className = 'data-section';
+                                publicSection.innerHTML = `<h3>Scouted by Team ${scoutingTeam}</h3>`;
+                                
+                                const entryDiv = document.createElement('div');
+                                entryDiv.className = 'data-entry';
+                                
+                                const fieldValues = entryData.split('|');
+                                data.fields.forEach((field, index) => {
+                                    // Display all fields regardless of their content
+                                    entryDiv.innerHTML += `
+                                        <div class="field-value">
+                                            <span>${field}:</span>
+                                            <span>${fieldValues[index] || 'N/A'}</span>
+                                        </div>
+                                    `;
+                                });
+                                publicSection.appendChild(entryDiv);
+                                container.appendChild(publicSection);
+                                hasContent = true;
+                            });
+                        });
+                    }
+
+                    if (!hasContent) {
+                        container.innerHTML = `
+                            <div class="data-section">
+                                <div class="data-entry">
+                                    <p style="text-align: center; color: #666;">No scouting data available for this team.</p>
+                                </div>
+                            </div>
+                        `;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching team data:', error);
+                    const container = document.getElementById('data-content');
+                    container.innerHTML = `
+                        <div class="data-section">
+                            <h3>Error</h3>
+                            <div class="data-entry">
+                                <pre style="color: red;">Failed to load team data</pre>
+                            </div>
+                        </div>
+                    `;
+                });
+        })
+        .catch(error => console.error('Error fetching team ranking:', error));
+}
+
+function showMatchHistory(teamNumber, eventId) {
+    const popup = document.getElementById('stats-popup');
+    const content = popup.querySelector('.stats-content');
+    
+    // Fetch team details for the popup header
+    fetch(`./rankings/?event=${eventId}`)
+        .then(handleApiResponse)
+        .then(data => {
+            const team = data.rankings.find(t => t.teamNumber == teamNumber);
+            if (team) {
+                content.querySelector('.stats-header').textContent = `${team.teamNumber} - ${team.teamName}`;
+                content.querySelector('.stat-wins').textContent = team.wins;
+                content.querySelector('.stat-ties').textContent = team.ties;
+                content.querySelector('.stat-losses').textContent = team.losses;
+                content.querySelector('.matches-played').textContent = `Matches Played: ${team.matchesPlayed}`;
+            }
+        })
+        .catch(error => console.error('Error fetching team details:', error));
+
+    // Fetch and render match results
+    fetchAllMatches(eventId).then(data => {
+        const matches = data.matches.filter(match => 
+            match.red.teams.includes(teamNumber) || 
+            match.blue.teams.includes(teamNumber)
+        );
+        renderMatchResults(matches, teamNumber);
+    });
+
+    popup.classList.add('active');
+}
+
 function handleSubmit(event) {
+    trackInsight({
+        message: 'Form submitted',
+        method: 'POST',
+        trace: '/add/',
+        body: { team_number: document.getElementById('team-select').value }
+    });
+
     event.preventDefault();
 
     const teamNumber = document.getElementById('team-select').value;
@@ -531,6 +751,13 @@ function dismissLeaderboardInstructions(button) {
 }
 
 function fetchLeaderboard(eventId) {
+    trackInsight({
+        message: 'Leaderboard requested',
+        method: 'GET',
+        trace: '/workspaces/WikiScout/dashboard/rankings/index.php',
+        parameters: { event: eventId }
+    });
+
     return cachedFetch(`./rankings/?event=${eventId}`)
         .then(data => {
             const container = document.getElementById('leaderboard-container');
@@ -671,127 +898,14 @@ function hideStatsPopup(event) {
     }
 }
 
-function fetchMatchResults(teamNumber, eventId) {
-    fetch(`./matches/?event=${eventId}`)
-        .then(handleApiResponse)
-        .then(data => {
-            const matches = data.matches.filter(match => 
-                match.teams.some(team => team.teamNumber === teamNumber)
-            );
-            renderMatchResults(matches, teamNumber);
-        })
-        .catch(error => console.error('Error fetching match results:', error));
-}
-
-function showDataView() {
-    hideAllContainers();
-    const dataContainer = document.getElementById('data-container');
-    dataContainer.classList.add('active');
-    
-    const eventId = localStorage.getItem('event');
-    if (eventId) {
-        updateDataView(eventId);
-    }
-}
-
-function fetchTeamData(teamNumber, eventId) {
-    if (!teamNumber || !eventId) return;
-    
-    fetch(`./view/?team=${teamNumber}&event=${eventId}`)
-        .then(handleApiResponse)
-        .then(data => {
-            const container = document.getElementById('data-content');
-            container.innerHTML = '';
-            let hasContent = false;
-
-            // Your team's private data section first
-            if (data.private_data?.data) {
-                const privateSection = document.createElement('div');
-                privateSection.className = 'data-section';
-                privateSection.innerHTML = `<h3>Your Scouting Data</h3>`;
-                
-                const entryDiv = document.createElement('div');
-                entryDiv.className = 'data-entry';
-                
-                const fieldValues = data.private_data.data.split('|');
-                data.fields.forEach((field, index) => {
-                    entryDiv.innerHTML += `
-                        <div class="field-value">
-                            <span>${field}:</span>
-                            <span>${fieldValues[index] || 'N/A'}</span>
-                        </div>
-                    `;
-                });
-                privateSection.appendChild(entryDiv);
-                container.appendChild(privateSection);
-                hasContent = true;
-            }
-
-            // Other teams' data section
-            if (data.public_data?.data) {
-                const myTeam = localStorage.getItem('myTeam');
-                let hasPublicData = false;
-
-                Object.entries(data.public_data.data).forEach(([teamId, teamEntries]) => {
-                    Object.entries(teamEntries).forEach(([scoutingTeam, entryData]) => {
-                        if (scoutingTeam === myTeam || teamId.split('-')[0] === myTeam) return;
-                        
-                        if (!hasPublicData && hasContent) {
-                            const divider = document.createElement('div');
-                            divider.className = 'data-divider';
-                            container.appendChild(divider);
-                            hasPublicData = true;
-                        }
-
-                        const publicSection = document.createElement('div');
-                        publicSection.className = 'data-section';
-                        publicSection.innerHTML = `<h3>Scouted by Team ${scoutingTeam}</h3>`;
-                        
-                        const entryDiv = document.createElement('div');
-                        entryDiv.className = 'data-entry';
-                        
-                        const fieldValues = entryData.split('|');
-                        data.fields.forEach((field, index) => {
-                            // Display all fields regardless of their content
-                            entryDiv.innerHTML += `
-                                <div class="field-value">
-                                    <span>${field}:</span>
-                                    <span>${fieldValues[index] || 'N/A'}</span>
-                                </div>
-                            `;
-                        });
-                        publicSection.appendChild(entryDiv);
-                        container.appendChild(publicSection);
-                        hasContent = true;
-                    });
-                });
-            }
-
-            if (!hasContent) {
-                container.innerHTML = `
-                    <div class="data-section">
-                        <div class="data-entry">
-                            <p style="text-align: center; color: #666;">No scouting data available for this team.</p>
-                        </div>
-                    </div>
-                `;
-            }
-        })
-        .catch(error => {
-            console.error('Error fetching team data:', error);
-            const container = document.getElementById('data-content');
-            container.innerHTML = `
-                <div class="data-section">
-                    <h3>Error</h3>
-                    <div class="data-entry">
-                        <pre style="color: red;">Failed to load team data</pre>
-                    </div>
-                </div>
-            `;
-        });
-}
-
 function cachedFetch(url, options = {}) {
+    trackInsight({
+        message: 'API request',
+        method: options.method || 'GET',
+        trace: url,
+        metadata: { cached: false }
+    });
+
     const cacheKey = url + (options.method || 'GET');
     
     // Determine cache category based on URL
@@ -815,6 +929,12 @@ function cachedFetch(url, options = {}) {
     
     // Check cache first if we have a cache duration
     if (cacheDuration && cacheCategory && apiCache[cacheCategory][cacheKey]?.timestamp > Date.now() - cacheDuration) {
+        trackInsight({
+            message: 'API request (cached)',
+            method: options.method || 'GET',
+            trace: url,
+            metadata: { cached: true }
+        });
         return Promise.resolve(apiCache[cacheCategory][cacheKey].data);
     }
 

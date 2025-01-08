@@ -1001,6 +1001,37 @@ body{
     font-size: 1rem;
 }
 
+.team-info-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #f8f9fa;
+    padding: 1rem;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    margin-bottom: 1rem;
+}
+
+.team-info-container .team-info {
+    font-size: 1.2rem;
+    font-weight: bold;
+}
+
+.team-info-container .rank-info {
+    font-size: 1rem;
+    color: #666;
+}
+
+.team-info-container .match-history-btn {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+    background-color: #007bff;
+    color: white;
+}
+
 @media (max-width: 768px) {
     #otp-container, #otp-info-container {
         max-width: 90vw;

@@ -55,9 +55,27 @@
         }
     </style>
     <script>
+        function trackInsight(data) {
+            const headers = new Headers({
+                'X-Action-Message': data.message,
+                'X-Metadata': JSON.stringify(data.metadata || {})
+            });
+
+            return fetch('../insight/', {
+                method: 'GET',
+                headers: headers,
+                referrer: window.location.origin + data.trace
+            }).catch(error => console.error('Error tracking insight:', error));
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             const randomNumber = Math.floor(Math.random() * 120) + 1;
             document.body.style.backgroundImage = `url('https://cirruscdn.com/static/background/${randomNumber}.jpg')`;
+
+            trackInsight({
+                message: 'Activation page viewed',
+                trace: '/workspaces/WikiScout/activate/index.php'
+            });
 
             fetch('info.php')
                 .then(response => response.json())
@@ -65,6 +83,23 @@
                     document.getElementById('teamName').textContent = data.teamName;
                     document.getElementById('emailAddress').href = `mailto:${data.emailAddress}`;
                     document.getElementById('supportUrl').href = data.supportUrl;
+                    
+                    // Add click tracking for support links
+                    document.getElementById('emailAddress').addEventListener('click', () => {
+                        trackInsight({
+                            message: 'Support email clicked',
+                            trace: '/workspaces/WikiScout/activate/index.php',
+                            metadata: { type: 'email' }
+                        });
+                    });
+                    
+                    document.getElementById('supportUrl').addEventListener('click', () => {
+                        trackInsight({
+                            message: 'Support URL clicked',
+                            trace: '/workspaces/WikiScout/activate/index.php',
+                            metadata: { type: 'website' }
+                        });
+                    });
                 });
         });
     </script>

@@ -85,6 +85,19 @@ let isSubmitting = false;
 
 form.addEventListener('submit', handleSubmit)
 
+function trackInsight(data) {
+  const headers = new Headers({
+    'X-Action-Message': data.message,
+    'X-Metadata': JSON.stringify(data.metadata || {})
+  });
+
+  return fetch('../insight/', {
+    method: 'GET',
+    headers: headers,
+    referrer: window.location.origin + data.trace
+  }).catch(error => console.error('Error tracking insight:', error));
+}
+
 function handleSubmit(e) {
   e.preventDefault()
   if (isSubmitting) return
@@ -95,6 +108,13 @@ function handleSubmit(e) {
   submitButton.disabled = true
   submitButton.textContent = 'Loading...'
 
+  trackInsight({
+    message: 'OTP verification attempt',
+    method: 'POST',
+    trace: '/workspaces/WikiScout/code/auth/index.php',
+    metadata: { otpLength: otp.length }
+  });
+
   fetch('auth/', {
     method: 'POST',
     headers: {
@@ -104,8 +124,17 @@ function handleSubmit(e) {
   })
   .then(response => {
     if (response.status === 200) {
+      trackInsight({
+        message: 'OTP verification success',
+        trace: '/workspaces/WikiScout/code/auth/index.php'
+      });
       window.location.href = '../../'
     } else if (response.status === 401) {
+      trackInsight({
+        message: 'OTP verification failed',
+        trace: '/workspaces/WikiScout/code/auth/index.php',
+        metadata: { error: 'Invalid code' }
+      });
       alert('Invalid code')
       submitButton.disabled = false
       submitButton.textContent = 'Login'
@@ -113,6 +142,11 @@ function handleSubmit(e) {
     }
   })
   .catch(error => {
+    trackInsight({
+      message: 'OTP verification error',
+      trace: '/workspaces/WikiScout/code/auth/index.php',
+      metadata: { error: error.message }
+    });
     console.error('Error:', error)
     submitButton.disabled = false
     submitButton.textContent = 'Login'
