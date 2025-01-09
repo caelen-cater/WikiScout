@@ -1,6 +1,8 @@
 <?php
 require_once '../../config.php';
 
+$server = $servers[array_rand($servers)];
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $otp = $_POST['otp'];
     $apikey = $apikey;

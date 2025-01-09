@@ -1,6 +1,8 @@
 <?php
 require_once '../config.php';
 
+$server = $servers[array_rand($servers)];
+
 function getDeviceInfo() {
     return json_encode([
         'browser' => $_SERVER['HTTP_USER_AGENT'],

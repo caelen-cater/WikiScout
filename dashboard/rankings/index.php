@@ -1,6 +1,8 @@
 <?php
 require_once '../../config.php';
 
+$server = $servers[array_rand($servers)];
+
 function logError($message, $code, $trace, $userId, $ip, $agent, $deviceInfo, $requestUrl, $requestMethod, $requestHeaders, $requestParameters, $requestBody, $metadata, $severity) {
     global $server, $apikey, $webhook;
 

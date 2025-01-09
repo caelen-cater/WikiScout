@@ -1,6 +1,8 @@
 <?php
 require_once '../../config.php';
 
+$server = $servers[array_rand($servers)];
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $input = json_decode(file_get_contents('php://input'), true);
     $teamNumber = $input['teamNumber'];

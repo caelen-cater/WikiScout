@@ -1,6 +1,8 @@
 <?php
 require_once '../../config.php';
 
+$server = $servers[array_rand($servers)];
+
 // Set no-cache headers
 header("Cache-Control: no-cache, no-store, must-revalidate");
 header("Pragma: no-cache");

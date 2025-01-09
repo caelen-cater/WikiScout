@@ -1,6 +1,8 @@
 <?php
 require_once '../../config.php';
 
+$server = $servers[array_rand($servers)];
+
 function report_error($message, $code, $trace, $user_id, $severity) {
     global $server, $apikey, $webhook;
 

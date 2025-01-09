@@ -96,9 +96,8 @@ body{
 }
 
 .icon{
-    
-    width: 2.6em;
     height: 2.6em;
+    width: auto;
     stroke: white;
     fill: transparent;
     stroke-width: 1pt;
@@ -106,7 +105,6 @@ body{
     stroke-linecap: round;
     stroke-linejoin: round;
     stroke-dasharray: 400;
-    
 }
 
 .menu__item.active .icon {
