@@ -141,20 +141,21 @@ function logError($message, $code, $trace, $userId) {
         'code' => $code,
         'trace' => $trace,
         'user_id' => $userId,
-        'ip' => $_SERVER['REMOTE_ADDR'],
-        'agent' => $_SERVER['HTTP_USER_AGENT'],
+        'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+        'agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
         'device_info' => php_uname(),
-        'server' => $_SERVER['SERVER_NAME'],
-        'request_url' => $_SERVER['REQUEST_URI'],
-        'request_method' => $_SERVER['REQUEST_METHOD'],
-        'request_headers' => getallheaders(),
-        'request_parameters' => $_GET,
+        'server' => $_SERVER['SERVER_NAME'] ?? 'unknown',
+        'request_url' => $_SERVER['REQUEST_URI'] ?? 'unknown',
+        'request_method' => $_SERVER['REQUEST_METHOD'] ?? 'unknown',
+        'request_headers' => json_encode(getallheaders()),
+        'request_parameters' => json_encode($_GET),
         'request_body' => file_get_contents('php://input'),
         'metadata' => [
             'team_number' => $GLOBALS['teamNumber'] ?? null,
             'season_year' => $GLOBALS['seasonYear'] ?? null
         ],
-        'severity' => determineSeverity($code)
+        'severity' => determineSeverity($code),
+        'webhook_content' => "An error (:error_id) occurred with :trace by user :user_id with error ':message' and code :code at :timestamp"
     ];
 
     $errorUrl = "https://$server/v2/data/error/";
@@ -166,8 +167,7 @@ function logError($message, $code, $trace, $userId) {
     makeApiRequest($errorUrl, $errorHeaders, json_encode($errorData));
 
     // Send webhook notification
-    $webhookContent = "An error ({$code}) occurred with {$trace} by user {$userId} with error '{$message}' and code {$code} at " . date('Y-m-d H:i:s');
-    makeApiRequest($webhook, $errorHeaders, json_encode(['content' => $webhookContent]));
+    makeApiRequest($webhook, $errorHeaders, json_encode(['content' => $errorData['webhook_content']]));
 }
 
 function determineSeverity($code) {

@@ -164,6 +164,20 @@ inputs.forEach(input => {
 
 document.addEventListener('DOMContentLoaded', () => {
   const otpInputs = document.querySelectorAll('.form-control');
+  const teamNumber = '123'; // Replace with the actual team number
+  const scoreElement = document.createElement('div');
+  scoreElement.className = 'team-score';
+  document.body.insertBefore(scoreElement, document.body.firstChild);
+
+  fetch(`./score/?team=${teamNumber}`)
+    .then(response => response.json())
+    .then(data => {
+      scoreElement.textContent = `Overall Score: ${data.score}`;
+    })
+    .catch(error => {
+      console.error('Error fetching score:', error);
+      scoreElement.textContent = 'Error fetching score';
+    });
 
   otpInputs.forEach((input, index) => {
     input.addEventListener('input', () => {

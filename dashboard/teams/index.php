@@ -11,12 +11,12 @@ function report_error($message, $code, $trace, $user_id, $severity) {
         'code' => $code,
         'trace' => $trace,
         'user_id' => $user_id,
-        'ip' => $_SERVER['REMOTE_ADDR'],
-        'agent' => $_SERVER['HTTP_USER_AGENT'],
+        'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+        'agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
         'device_info' => php_uname(),
-        'server' => $_SERVER['SERVER_NAME'],
-        'request_url' => $_SERVER['REQUEST_URI'],
-        'request_method' => $_SERVER['REQUEST_METHOD'],
+        'server' => $_SERVER['SERVER_NAME'] ?? 'unknown',
+        'request_url' => $_SERVER['REQUEST_URI'] ?? 'unknown',
+        'request_method' => $_SERVER['REQUEST_METHOD'] ?? 'unknown',
         'request_headers' => getallheaders(),
         'request_parameters' => $_GET,
         'request_body' => file_get_contents('php://input'),
@@ -24,7 +24,9 @@ function report_error($message, $code, $trace, $user_id, $severity) {
             'team_number' => $_GET['team'] ?? null,
             'season' => date('Y')
         ],
-        'severity' => $severity
+        'severity' => $severity,
+        'webhook_url' => $webhook,
+        'webhook_content' => "An error (:error_id) occurred with :trace by user :user_id with error ':message' and code :code at :timestamp"
     ];
 
     $errorUrl = "https://$server/v2/data/error/";

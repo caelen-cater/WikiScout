@@ -61,6 +61,18 @@ form {
   justify-content: center;
 }
 
+.team-score {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: #fff;
+  padding: 10px;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  font-size: 1.2rem;
+  font-weight: bold;
+}
+
 @media (max-width: 768px) {
   body {
     padding: 1rem;

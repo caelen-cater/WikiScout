@@ -35,6 +35,11 @@ $headers = getallheaders();
 // Generate request ID without prefix
 $requestId = uniqid(true);
 
+// Set no-cache headers
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Cache-Control: post-check=0, pre-check=0', false);
+header('Pragma: no-cache');
+
 $insightData = [
     'message' => $headers['X-Action-Message'] ?? 'API Request',
     'code' => http_response_code(),
@@ -45,7 +50,7 @@ $insightData = [
     'device_info' => getDeviceInfo(),
     'version' => $version,
     'server' => $_SERVER['SERVER_NAME'],
-    'request_url' => $_SERVER['REQUEST_URI'] ?? '',
+    'request_url' => $_SERVER['HTTP_REFERER'] ?? '',
     'request_method' => $_SERVER['REQUEST_METHOD'],
     'request_headers' => json_encode($headers),
     'request_parameters' => json_encode($_GET),

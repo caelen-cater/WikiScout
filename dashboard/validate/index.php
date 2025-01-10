@@ -98,7 +98,7 @@ function logError($message, $code, $userId) {
         'metadata' => [],
         'severity' => determineSeverity($code),
         'webhook_url' => $webhook,
-        'webhook_content' => "An error ($code) occurred with {$errorData['trace']} by user $userId with error '$message' and code $code at " . date('c')
+        'webhook_content' => "An error (:error_id) occurred with :trace by user :user_id with error ':message' and code :code at :timestamp"
     ];
 
     makeApiRequest($errorUrl, $errorHeaders, json_encode($errorData));

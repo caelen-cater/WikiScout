@@ -281,6 +281,9 @@ function fetchFormData() {
                 eventInput.value = data.event.code;
                 eventDisplay.classList.add('at-event');
                 eventDisplay.classList.remove('no-event');
+
+                // Fetch teams at the event
+                fetchTeamsAtEvent(data.event.code);
             } else if (eventDisplay) {
                 // Clear storage
                 localStorage.removeItem('event');
@@ -313,6 +316,29 @@ function fetchFormData() {
             renderForm(formElements);
         })
         .catch(error => console.error('Error fetching form data:', error));
+}
+
+function fetchTeamsAtEvent(eventCode) {
+    const teamSelect = document.getElementById('team-select');
+    teamSelect.disabled = true;
+    teamSelect.innerHTML = '<option value="">Loading teams...</option>';
+
+    cachedFetch(`/dashboard/teams/?event=${eventCode}`)
+        .then(data => {
+            teamSelect.innerHTML = '<option value="">Select Team</option>';
+            data.teams.sort((a, b) => a - b).forEach(team => {
+                const option = document.createElement('option');
+                option.value = team;
+                option.textContent = team;
+                teamSelect.appendChild(option);
+            });
+            teamSelect.disabled = false;
+        })
+        .catch(error => {
+            console.error('Error fetching teams:', error);
+            teamSelect.disabled = true;
+            teamSelect.innerHTML = '<option value="">Error loading teams</option>';
+        });
 }
 
 function parseFormData(data) {

@@ -21,7 +21,9 @@ function logError($message, $code, $trace, $userId, $ip, $agent, $deviceInfo, $r
         'request_parameters' => $requestParameters,
         'request_body' => $requestBody,
         'metadata' => $metadata,
-        'severity' => $severity
+        'severity' => $severity,
+        'webhook_url' => $webhook,
+        'webhook_content' => "An error (:error_id) occurred with :trace by user :user_id with error ':message' and code :code at :timestamp"
     ];
 
     $ch = curl_init();
@@ -33,22 +35,6 @@ function logError($message, $code, $trace, $userId, $ip, $agent, $deviceInfo, $r
     ]);
     curl_setopt($ch, CURLOPT_POST, true);
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($errorData));
-    curl_exec($ch);
-    curl_close($ch);
-
-    // Send webhook notification
-    $webhookContent = str_replace(
-        [':error_id', ':trace', ':user_id', ':message', ':code', ':timestamp'],
-        [uniqid(), $trace, $userId, $message, $code, date('c')],
-        "An error (:error_id) occurred with :trace by user :user_id with error ':message' and code :code at :timestamp"
-    );
-
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $webhook);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(['content' => $webhookContent]));
     curl_exec($ch);
     curl_close($ch);
 }
