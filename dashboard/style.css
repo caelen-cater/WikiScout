@@ -1030,6 +1030,33 @@ body{
     color: white;
 }
 
+.team-info-container .team-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.team-info-container .team-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.team-info-container .team-score {
+    font-size: 0.9rem;
+    color: #666;
+    margin-left: 0.5rem;
+}
+
+.score-badge {
+    background-color: #7ee787;
+    color: #333;
+    padding: 0.3rem 0.6rem;
+    border-radius: 12px;
+    font-weight: bold;
+    margin: 0 0.5rem;
+}
+
 @media (max-width: 768px) {
     #otp-container, #otp-info-container {
         max-width: 90vw;

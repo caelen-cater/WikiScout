@@ -46,9 +46,8 @@ function report_error($message, $code, $trace, $user_id, $severity) {
     curl_close($ch);
 
     // Send webhook notification
-    $webhookContent = "An error ({$code}) occurred with {$trace} by user {$user_id} with error '{$message}' and code {$code} at " . date('c');
     $webhookData = [
-        'content' => $webhookContent
+        'content' => "An error (:error_id) occurred with :trace by user :user_id with error ':message' and code :code at :timestamp"
     ];
 
     $ch = curl_init();

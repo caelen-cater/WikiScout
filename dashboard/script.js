@@ -145,6 +145,26 @@ if (menuItems[0].classList.contains('active')) {
     showOtpContainer();
 }
 
+// Add this new function near the top with other utility functions
+async function retryFetch(url, options = {}, maxRetries = 3, delay = 1000) {
+    for (let i = 0; i < maxRetries; i++) {
+        try {
+            const response = await fetch(url, options);
+            if (response.status === 404) {
+                console.log(`Got 404, attempt ${i + 1} of ${maxRetries}, retrying...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                continue;
+            }
+            return response;
+        } catch (error) {
+            if (i === maxRetries - 1) throw error;
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+    }
+    throw new Error(`Failed after ${maxRetries} retries`);
+}
+
+// Replace the existing handleApiResponse function
 function handleApiResponse(response) {
     if (response.status === 501) {
         window.location.href = '../activate';
@@ -152,6 +172,8 @@ function handleApiResponse(response) {
     } else if (response.status === 401) {
         window.location.href = '../login';
         return Promise.reject('Redirecting to login');
+    } else if (response.status === 404) {
+        return Promise.reject('404 error');
     }
     return response.json();
 }
@@ -521,118 +543,124 @@ function showDataView() {
 function fetchTeamData(teamNumber, eventId) {
     if (!teamNumber || !eventId) return;
     
-    // Fetch team ranking
-    fetch(`./rankings/?event=${eventId}`)
-        .then(handleApiResponse)
-        .then(rankingsData => {
-            const teamRank = rankingsData.rankings.find(t => t.teamNumber == teamNumber)?.rank || 'N/A';
+    // Fetch team ranking and score in parallel
+    Promise.all([
+        fetch(`./rankings/?event=${eventId}`).then(handleApiResponse),
+        fetch(`./score/?team=${teamNumber}`).then(handleApiResponse)
+    ])
+    .then(([rankingsData, scoreData]) => {
+        const teamRank = rankingsData.rankings.find(t => t.teamNumber == teamNumber)?.rank || 'N/A';
+        const teamScore = scoreData.score || '0';
 
-            fetch(`./view/?team=${teamNumber}&event=${eventId}`)
-                .then(handleApiResponse)
-                .then(data => {
-                    const container = document.getElementById('data-content');
-                    container.innerHTML = '';
-                    let hasContent = false;
+        fetch(`./view/?team=${teamNumber}&event=${eventId}`)
+            .then(handleApiResponse)
+            .then(data => {
+                const container = document.getElementById('data-content');
+                container.innerHTML = '';
+                let hasContent = false;
 
-                    // Display team info and match history button
-                    const teamInfoContainer = document.createElement('div');
-                    teamInfoContainer.className = 'team-info-container';
-                    teamInfoContainer.innerHTML = `
-                        <div class="team-info">
+                // Display team info with score between rank and team number
+                const teamInfoContainer = document.createElement('div');
+                teamInfoContainer.className = 'team-info-container';
+                teamInfoContainer.innerHTML = `
+                    <div class="team-info">
+                        <div class="team-header">
                             <span class="rank-badge">#${teamRank}</span>
+                            <span class="score-badge">${teamScore}</span>
                             Team ${teamNumber}
                         </div>
-                        <button class="match-history-btn" onclick="showMatchHistory(${teamNumber}, '${eventId}')">Match History</button>
-                    `;
-                    container.appendChild(teamInfoContainer);
+                    </div>
+                    <button class="match-history-btn" onclick="showMatchHistory(${teamNumber}, '${eventId}')">Match History</button>
+                `;
+                container.appendChild(teamInfoContainer);
 
-                    // Your team's private data section first
-                    if (data.private_data?.data) {
-                        const privateSection = document.createElement('div');
-                        privateSection.className = 'data-section';
-                        privateSection.innerHTML = `<h3>Your Scouting Data</h3>`;
-                        
-                        const entryDiv = document.createElement('div');
-                        entryDiv.className = 'data-entry';
-                        
-                        const fieldValues = data.private_data.data.split('|');
-                        data.fields.forEach((field, index) => {
-                            entryDiv.innerHTML += `
-                                <div class="field-value">
-                                    <span>${field}:</span>
-                                    <span>${fieldValues[index] || 'N/A'}</span>
-                                </div>
-                            `;
-                        });
-                        privateSection.appendChild(entryDiv);
-                        container.appendChild(privateSection);
-                        hasContent = true;
-                    }
-
-                    // Other teams' data section
-                    if (data.public_data?.data) {
-                        const myTeam = localStorage.getItem('myTeam');
-                        let hasPublicData = false;
-
-                        Object.entries(data.public_data.data).forEach(([teamId, teamEntries]) => {
-                            Object.entries(teamEntries).forEach(([scoutingTeam, entryData]) => {
-                                if (scoutingTeam === myTeam || teamId.split('-')[0] === myTeam) return;
-                                
-                                if (!hasPublicData && hasContent) {
-                                    const divider = document.createElement('div');
-                                    divider.className = 'data-divider';
-                                    container.appendChild(divider);
-                                    hasPublicData = true;
-                                }
-
-                                const publicSection = document.createElement('div');
-                                publicSection.className = 'data-section';
-                                publicSection.innerHTML = `<h3>Scouted by Team ${scoutingTeam}</h3>`;
-                                
-                                const entryDiv = document.createElement('div');
-                                entryDiv.className = 'data-entry';
-                                
-                                const fieldValues = entryData.split('|');
-                                data.fields.forEach((field, index) => {
-                                    // Display all fields regardless of their content
-                                    entryDiv.innerHTML += `
-                                        <div class="field-value">
-                                            <span>${field}:</span>
-                                            <span>${fieldValues[index] || 'N/A'}</span>
-                                        </div>
-                                    `;
-                                });
-                                publicSection.appendChild(entryDiv);
-                                container.appendChild(publicSection);
-                                hasContent = true;
-                            });
-                        });
-                    }
-
-                    if (!hasContent) {
-                        container.innerHTML = `
-                            <div class="data-section">
-                                <div class="data-entry">
-                                    <p style="text-align: center; color: #666;">No scouting data available for this team.</p>
-                                </div>
+                // Your team's private data section first
+                if (data.private_data?.data) {
+                    const privateSection = document.createElement('div');
+                    privateSection.className = 'data-section';
+                    privateSection.innerHTML = `<h3>Your Scouting Data</h3>`;
+                    
+                    const entryDiv = document.createElement('div');
+                    entryDiv.className = 'data-entry';
+                    
+                    const fieldValues = data.private_data.data.split('|');
+                    data.fields.forEach((field, index) => {
+                        entryDiv.innerHTML += `
+                            <div class="field-value">
+                                <span>${field}:</span>
+                                <span>${fieldValues[index] || 'N/A'}</span>
                             </div>
                         `;
-                    }
-                })
-                .catch(error => {
-                    console.error('Error fetching team data:', error);
-                    const container = document.getElementById('data-content');
+                    });
+                    privateSection.appendChild(entryDiv);
+                    container.appendChild(privateSection);
+                    hasContent = true;
+                }
+
+                // Other teams' data section
+                if (data.public_data?.data) {
+                    const myTeam = localStorage.getItem('myTeam');
+                    let hasPublicData = false;
+
+                    Object.entries(data.public_data.data).forEach(([teamId, teamEntries]) => {
+                        Object.entries(teamEntries).forEach(([scoutingTeam, entryData]) => {
+                            if (scoutingTeam === myTeam || teamId.split('-')[0] === myTeam) return;
+                            
+                            if (!hasPublicData && hasContent) {
+                                const divider = document.createElement('div');
+                                divider.className = 'data-divider';
+                                container.appendChild(divider);
+                                hasPublicData = true;
+                            }
+
+                            const publicSection = document.createElement('div');
+                            publicSection.className = 'data-section';
+                            publicSection.innerHTML = `<h3>Scouted by Team ${scoutingTeam}</h3>`;
+                            
+                            const entryDiv = document.createElement('div');
+                            entryDiv.className = 'data-entry';
+                            
+                            const fieldValues = entryData.split('|');
+                            data.fields.forEach((field, index) => {
+                                // Display all fields regardless of their content
+                                entryDiv.innerHTML += `
+                                    <div class="field-value">
+                                        <span>${field}:</span>
+                                        <span>${fieldValues[index] || 'N/A'}</span>
+                                    </div>
+                                `;
+                            });
+                            publicSection.appendChild(entryDiv);
+                            container.appendChild(publicSection);
+                            hasContent = true;
+                        });
+                    });
+                }
+
+                if (!hasContent) {
                     container.innerHTML = `
                         <div class="data-section">
-                            <h3>Error</h3>
                             <div class="data-entry">
-                                <pre style="color: red;">Failed to load team data</pre>
+                                <p style="text-align: center; color: #666;">No scouting data available for this team.</p>
                             </div>
                         </div>
                     `;
-                });
-        })
-        .catch(error => console.error('Error fetching team ranking:', error));
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching team data:', error);
+                const container = document.getElementById('data-content');
+                container.innerHTML = `
+                    <div class="data-section">
+                        <h3>Error</h3>
+                        <div class="data-entry">
+                            <pre style="color: red;">Failed to load team data</pre>
+                        </div>
+                    </div>
+                `;
+            });
+    })
+    .catch(error => console.error('Error fetching team data:', error));
 }
 
 function showMatchHistory(teamNumber, eventId) {
@@ -970,7 +998,7 @@ function cachedFetch(url, options = {}) {
     }
 
     // Make new request
-    const requestPromise = fetch(url, options)
+    const requestPromise = retryFetch(url, options)
         .then(handleApiResponse)
         .then(data => {
             if (cacheDuration && cacheCategory) {

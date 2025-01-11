@@ -1,3 +1,4 @@
 <?php
-echo "Coming Soon!";
+header('Content-Type: application/json');
+echo '{"score":"N/A"}';
 ?>
