@@ -32,9 +32,6 @@ if ($token) {
 // Get headers from request
 $headers = getallheaders();
 
-// Generate request ID without prefix
-$requestId = uniqid(true);
-
 // Set no-cache headers
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Cache-Control: post-check=0, pre-check=0', false);
@@ -65,8 +62,7 @@ $options = [
         'method' => 'POST',
         'header' => [
             'Content-Type: application/json',
-            'Authorization: Bearer ' . $apikey,
-            'X-Request-ID: ' . $requestId
+            'Authorization: Bearer ' . $apikey
         ],
         'content' => json_encode($insightData)
     ]
@@ -74,10 +70,14 @@ $options = [
 
 try {
     $context = stream_context_create($options);
-    file_get_contents($url, false, $context);
+    $response = file_get_contents($url, false, $context);
+    $responseData = json_decode($response, true);
     
-    // Set response headers
-    header('X-Request-ID: ' . $requestId);
+    // Get request ID from API response and ensure it's set in response headers
+    if (!empty($responseData['request_id'])) {
+        header('X-Request-ID: ' . $responseData['request_id'], true);
+    }
+    echo json_encode(['request_id' => $responseData['request_id'] ?? null]);
     http_response_code(200);
 } catch (Exception $e) {
     http_response_code(500);
