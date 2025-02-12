@@ -9,7 +9,7 @@ $apikey = 'API_KEY';
 $token = $_COOKIE['auth'];
 
 $ch = curl_init();
-curl_setopt($ch, CURLOPT_URL, "https://charlotte.sparrow.us-east.cirrusapi.com/v2/auth/user/");
+curl_setopt($ch, CURLOPT_URL, "https://us-east.cirrusapi.com/v2/auth/user/");
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_HTTPHEADER, [
     "Authorization: Bearer $apikey",

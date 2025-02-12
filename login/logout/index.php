@@ -18,7 +18,7 @@ function sendDeleteRequest($url, $apikey, $token) {
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     if (isset($_COOKIE['auth'])) {
         $token = $_COOKIE['auth'];
-        $url = 'https://charlotte.sparrow.us-east.cirrusapi.com/v2/auth/user/';
+        $url = 'https://us-east.cirrusapi.com/v2/auth/user/';
 
         $responseCode = sendDeleteRequest($url, $apikey, $token);
 

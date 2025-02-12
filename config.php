@@ -1,15 +1,6 @@
 <?php
 $servers = [
-    'anna.sparrow.us-east.cirrusapi.com',
-    'charlotte.sparrow.us-east.cirrusapi.com',
-    'emily.sparrow.us-east.cirrusapi.com',
-    'emma.sparrow.us-east.cirrusapi.com',
-    'lily.sparrow.us-east.cirrusapi.com',
-    'ethan.sparrow.us-east.cirrusapi.com',
-    'josh.sparrow.us-east.cirrusapi.com',
-    'lucas.sparrow.us-east.cirrusapi.com',
-    'michael.sparrow.us-east.cirrusapi.com',
-    'william.sparrow.us-east.cirrusapi.com',
+    'us-east.cirrusapi.com',
 ];
 // Learn about API servers here: https://cirrusapi.com/hc/articles/3/15/14/servers
 $apikey = 'your-api-key-here';

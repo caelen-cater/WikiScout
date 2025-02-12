@@ -5,7 +5,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' || empty($_POST)) {
 }
 
 $apikey = 'API_KEY';
-$api_url = 'https://charlotte.sparrow.us-east.cirrusapi.com/v2/auth/user/';
+$api_url = 'https://us-east.cirrusapi.com/v2/auth/user/';
 
 $username = $_POST['username'];
 $password = $_POST['password'];

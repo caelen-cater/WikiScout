@@ -16,7 +16,8 @@ $token = $_COOKIE['auth'] ?? null;
 $userId = null;
 
 if ($token) {
-    $authUrl = "https://" . $server . "/v2/auth/user/";
+    // $authUrl = "https://" . $server . "/v2/auth/user/";
+    $authUrl = "https://us-east.cirrusapi.com/v2/auth/user/";
     $authOptions = [
         "http" => [
             "header" => "Authorization: Bearer " . $apikey . "\r\n" .

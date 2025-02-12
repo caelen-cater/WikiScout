@@ -62,8 +62,8 @@ $firstHeaders = [
     "Authorization: Basic $auth"
 ];
 
-// Get today's events
-$eventsUrl = "https://ftc-api.firstinspires.org/v2.0/$seasonYear/events/";
+// Get team's events directly
+$eventsUrl = "https://ftc-api.firstinspires.org/v2.0/$seasonYear/events?teamNumber=$teamNumber";
 $eventsResponse = makeApiRequest($eventsUrl, $firstHeaders);
 
 if ($eventsResponse['http_code'] !== 200) {
@@ -75,44 +75,28 @@ if ($eventsResponse['http_code'] !== 200) {
 
 $eventsData = json_decode($eventsResponse['response'], true);
 $currentTime = time();
-$currentEvents = [];
+$found = false;
 
-// Filter for current events
+// Check if any of the team's events are currently active
 foreach ($eventsData['events'] as $event) {
     $startTime = strtotime($event['dateStart']);
     $endTime = strtotime($event['dateEnd']);
     
     if ($currentTime >= $startTime && $currentTime <= $endTime) {
-        $currentEvents[] = $event;
+        echo json_encode([
+            'found' => true,
+            'event' => [
+                'code' => $event['code'],
+                'name' => $event['name'],
+                'startDate' => $event['dateStart'],
+                'endDate' => $event['dateEnd']
+            ]
+        ]);
+        exit;
     }
 }
 
-// Check each current event for the team
-foreach ($currentEvents as $event) {
-    $teamsUrl = "https://ftc-api.firstinspires.org/v2.0/$seasonYear/teams?eventCode=" . $event['code'];
-    $teamsResponse = makeApiRequest($teamsUrl, $firstHeaders);
-    
-    if ($teamsResponse['http_code'] === 200) {
-        $teamsData = json_decode($teamsResponse['response'], true);
-        foreach ($teamsData['teams'] as $team) {
-            if ($team['teamNumber'] == $teamNumber) {
-                // Found the event!
-                echo json_encode([
-                    'found' => true,
-                    'event' => [
-                        'code' => $event['code'],
-                        'name' => $event['name'],
-                        'startDate' => $event['dateStart'],
-                        'endDate' => $event['dateEnd']
-                    ]
-                ]);
-                exit;
-            }
-        }
-    }
-}
-
-// If we get here, team wasn't found at any current event
+// If we get here, team isn't at any current event
 echo json_encode([
     'found' => false,
     'message' => 'Team not found at any current event'

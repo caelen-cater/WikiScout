@@ -378,6 +378,34 @@ function updateSliderBackground(slider) {
     slider.style.setProperty('--value', `${value}%`);
 }
 
+function showWarningTooltip(element, message) {
+    const existingTooltip = document.querySelector('.warning-tooltip');
+    if (existingTooltip) {
+        existingTooltip.remove();
+    }
+
+    const tooltip = document.createElement('div');
+    tooltip.className = 'warning-tooltip';
+    tooltip.textContent = 'This field is locked. Please select a team number first to enable data entry.';
+
+    // Position tooltip near the element
+    const rect = element.getBoundingClientRect();
+    tooltip.style.top = `${rect.bottom + window.scrollY + 5}px`;
+    tooltip.style.left = `${rect.left + window.scrollX}px`;
+
+    // Ensure tooltip stays within viewport
+    document.body.appendChild(tooltip);
+    const tooltipRect = tooltip.getBoundingClientRect();
+    if (tooltipRect.right > window.innerWidth) {
+        tooltip.style.left = `${window.innerWidth - tooltipRect.width - 10}px`;
+    }
+
+    // Remove tooltip after animation
+    tooltip.addEventListener('animationend', () => {
+        tooltip.remove();
+    });
+}
+
 function renderForm(elements) {
     formContainer.innerHTML = '';
 
@@ -421,9 +449,28 @@ function renderForm(elements) {
     teamSelect.style.width = '100%';
     teamSelect.innerHTML = '<option value="">Select Team</option>';
 
+    // Add change event listener to enable/disable form fields
+    teamSelect.addEventListener('change', (e) => {
+        const formFields = formContainer.querySelectorAll('input, textarea, select, button.submit-btn');
+        const shouldEnable = e.target.value !== '';
+        formFields.forEach(field => {
+            if (field !== teamSelect && field.id !== 'event-id' && field.id !== 'event-id-code') {
+                field.disabled = !shouldEnable;
+            }
+        });
+    });
+
     teamNumberGroup.appendChild(teamNumberLabel);
     teamNumberGroup.appendChild(teamSelect);
     formContainer.appendChild(teamNumberGroup);
+
+    // Add this function to handle disabled field clicks
+    function handleDisabledFieldClick(e) {
+        if (e.target.disabled) {
+            showWarningTooltip(e.target, 'Please select a team first');
+            e.preventDefault();
+        }
+    }
 
     // Rest of form elements
     elements.forEach(element => {
@@ -440,6 +487,8 @@ function renderForm(elements) {
                 input = document.createElement('input');
                 input.type = 'number';
                 input.className = 'full-width';
+                input.disabled = true; // Initially disabled
+                input.addEventListener('click', handleDisabledFieldClick);
                 formGroup.appendChild(input);
                 break;
             case 'text':
@@ -450,11 +499,15 @@ function renderForm(elements) {
                     input = document.createElement('input');
                     input.type = 'text';
                 }
+                input.disabled = true; // Initially disabled
+                input.addEventListener('click', handleDisabledFieldClick);
                 formGroup.appendChild(input);
                 break;
             case 'checkbox':
                 input = document.createElement('input');
                 input.type = 'checkbox';
+                input.disabled = true; // Initially disabled
+                input.addEventListener('click', handleDisabledFieldClick);
                 formGroup.appendChild(input);
                 break;
             case 'slider':
@@ -464,6 +517,8 @@ function renderForm(elements) {
                 input.max = element.options[1];
                 input.step = element.options[2];
                 input.value = element.options[0];
+                input.disabled = true; // Initially disabled
+                input.addEventListener('click', handleDisabledFieldClick);
 
                 const numberInput = document.createElement('input');
                 numberInput.type = 'number';
@@ -472,6 +527,8 @@ function renderForm(elements) {
                 numberInput.step = element.options[2];
                 numberInput.value = element.options[0];
                 numberInput.className = 'small-text';
+                numberInput.disabled = true; // Initially disabled
+                numberInput.addEventListener('click', handleDisabledFieldClick);
 
                 updateSliderBackground(input);
 
@@ -496,6 +553,7 @@ function renderForm(elements) {
     const submitButton = document.createElement('button');
     submitButton.className = 'submit-btn';
     submitButton.textContent = 'Submit';
+    submitButton.disabled = true; // Initially disabled
     submitButton.addEventListener('click', handleSubmit);
     formContainer.appendChild(submitButton);
 }
