@@ -1,28 +1,54 @@
 <?php
+require_once '../../../config.php';
+
 if (!isset($_COOKIE['auth'])) {
     http_response_code(401);
     exit;
 }
 
-$apikey = 'API_KEY';
+try {
+    $db = new PDO(
+        "mysql:host={$mysql['host']};dbname={$mysql['database']};port={$mysql['port']}",
+        $mysql['username'],
+        $mysql['password'],
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+    );
 
-$token = $_COOKIE['auth'];
+    // Check token validity
+    $stmt = $db->prepare("
+        SELECT u.id, u.team_number
+        FROM auth_tokens at
+        JOIN users u ON at.user_id = u.id
+        WHERE at.token = ?
+        AND at.expires_at > CURRENT_TIMESTAMP
+        AND at.is_revoked = 0
+    ");
+    
+    $stmt->execute([$_COOKIE['auth']]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    // Invalid or expired token
+    if (!$result) {
+        http_response_code(401);
+        exit;
+    }
 
-$ch = curl_init();
-curl_setopt($ch, CURLOPT_URL, "https://us-east.cirrusapi.com/v2/auth/user/");
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_HTTPHEADER, [
-    "Authorization: Bearer $apikey",
-    "Token: $token"
-]);
+    // Valid token but no team number assigned
+    if ($result['team_number'] === null) {
+        http_response_code(501);
+        exit;
+    }
 
-$response = curl_exec($ch);
-$http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_close($ch);
+    // Token is valid and has team number
+    header('Content-Type: application/json');
+    echo json_encode([
+        'valid' => true,
+        'team_number' => $result['team_number']
+    ]);
 
-if ($http_code == 200) {
-    http_response_code(200);
-} else {
-    http_response_code(401);
+} catch (PDOException $e) {
+    error_log("Token validation error: " . $e->getMessage());
+    http_response_code(500);
+    exit;
 }
 ?>

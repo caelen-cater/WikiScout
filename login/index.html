@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Login</title>
+  <title>WikiScout - Login</title>
   <link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.14.0/css/all.min.css'>
   <style>
     @import url('https://fonts.googleapis.com/css?family=Montserrat:400,800');
@@ -265,111 +265,130 @@
 <body>
 <div class="container" id="container">
     <div class="form-container sign-up-container">
-        <form action="auth/" method="POST" onsubmit="return validatePassword()">
-            <h1>Welcome aboard!</h1>
-            <p>Ready to join the adventure?</p>
+        <!-- Registration Form -->
+        <form action="auth/" method="POST" onsubmit="return validateForm(this, true)">
+            <h1>Create Account</h1>
+            <p>Enter your details to get started</p>
             <div class="name-container">
-                <input type="text" name="first" placeholder="First Name" />
-                <input type="text" name="last" placeholder="Last Name" />
+                <input type="text" name="first" placeholder="First Name" required />
+                <input type="text" name="last" placeholder="Last Name" required />
             </div>
-            <input type="email" name="username" placeholder="Email" />
-            <input type="password" name="password" placeholder="Password" maxlength="64" />
-            <input type="password" name="confirm_password" placeholder="Confirm Password" maxlength="64" />
-            <button type="submit">Sign Up</button>
+            <input type="email" name="email" placeholder="Email" required />
+            <input type="password" name="password" placeholder="Password" maxlength="64" required />
+            <input type="password" name="confirm_password" placeholder="Confirm Password" maxlength="64" required />
+            <button type="submit">Register</button>
+            <div id="register-error" class="error-message"></div>
         </form>
     </div>
     <div class="form-container sign-in-container">
-        <form action="auth/" method="POST">
-            <h1>Hello again!</h1>
-            <p>Let’s pick up where you left off.</p>
-            <input type="email" name="username" placeholder="Email" />
-            <input type="password" name="password" placeholder="Password" maxlength="64" />
+        <!-- Login Form -->
+        <form action="auth/" method="POST" onsubmit="return validateForm(this, false)">
+            <h1>Sign In</h1>
+            <p>Welcome back!</p>
+            <input type="email" name="email" placeholder="Email" required />
+            <input type="password" name="password" placeholder="Password" maxlength="64" required />
             <button type="submit">Sign In</button>
-            <p class="error-message" id="error-message"></p>
+            <div id="login-error" class="error-message"></div>
         </form>
     </div>
     <div class="overlay-container">
         <div class="overlay">
             <div class="overlay-panel overlay-left">
-                <h1>Hello again!</h1>
-                <p>Let’s pick up where you left off.</p>
+                <h1>Welcome Back!</h1>
+                <p>Sign in with your team credentials to continue scouting</p>
                 <button class="ghost" id="signIn">Sign In</button>
             </div>
             <div class="overlay-panel overlay-right">
-                <h1>Welcome aboard!</h1>
-                <p>Ready to join the adventure?</p>
-                <button class="ghost" id="signUp">Sign Up</button>
+                <h1>New Team?</h1>
+                <p>Register your team to start scouting</p>
+                <button class="ghost" id="signUp">Register</button>
             </div>
         </div>
     </div>
 </div>
 
-  <script>
-    const signUpButton = document.getElementById('signUp');
-    const signInButton = document.getElementById('signIn');
-    const container = document.getElementById('container');
+<script>
+const signUpButton = document.getElementById('signUp');
+const signInButton = document.getElementById('signIn');
+const container = document.getElementById('container');
 
-    signUpButton.addEventListener('click', () => {
-      container.classList.add("right-panel-active");
-    });
+signUpButton.addEventListener('click', () => {
+    container.classList.add("right-panel-active");
+});
 
-    signInButton.addEventListener('click', () => {
-      container.classList.remove("right-panel-active");
-    });
+signInButton.addEventListener('click', () => {
+    container.classList.remove("right-panel-active");
+});
 
-    function validatePassword() {
-      const password = document.querySelector('input[name="password"]').value;
-      const confirmPassword = document.querySelector('input[name="confirm_password"]').value;
-      if (password !== confirmPassword) {
-        alert("Passwords do not match.");
+function validateForm(form, isRegistration) {
+    const errorDiv = isRegistration ? 
+        document.getElementById('register-error') : 
+        document.getElementById('login-error');
+    
+    // Clear previous errors
+    errorDiv.textContent = '';
+    
+    // Validate email
+    const email = form.email.value;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        errorDiv.textContent = 'Please enter a valid email address';
         return false;
-      }
-      return true;
     }
-
-    function setCookie(name, value, days) {
-      const date = new Date();
-      date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
-      const expires = "expires=" + date.toUTCString();
-      document.cookie = name + "=" + value + ";" + expires + ";path=/";
+    
+    if (isRegistration) {
+        // Registration validation
+        const password = form.password.value;
+        const confirmPassword = form.confirm_password.value;
+        
+        if (password !== confirmPassword) {
+            errorDiv.textContent = 'Passwords do not match';
+            return false;
+        }
+        
+        if (password.length < 8) {
+            errorDiv.textContent = 'Password must be at least 8 characters';
+            return false;
+        }
     }
+    
+    return true;
+}
 
-    function getCookie(name) {
-      const nameEQ = name + "=";
-      const ca = document.cookie.split(';');
-      for(let i = 0; i < ca.length; i++) {
-        let c = ca[i];
-        while (c.charAt(0) == ' ') c = c.substring(1, c.length);
-        if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length, c.length);
-      }
-      return null;
-    }
-
-    function handleResponse(token) {
-      setCookie('auth', token, 7);
-      window.location.href = 'callback';
-    }
-
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('auth') === 'failed') {
-      document.getElementById('error-message').innerText = 'Incorrect credentials';
-    }
-
-    // Function to check token on page load
-    function checkToken() {
-      fetch('auth/token/')
-        .then(response => {
-          if (response.status === 200) {
-            window.location.href = 'auth/callback/';
-          }
+// Check for existing session on page load
+window.addEventListener('load', () => {
+    const token = document.cookie.split('; ')
+        .find(row => row.startsWith('auth='))
+        ?.split('=')[1];
+    
+    if (token) {
+        fetch('auth/token/', {
+            headers: { 'Authorization': `Bearer ${token}` }
         })
-        .catch(error => {
-          console.error('Error:', error);
-        });
+        .then(response => {
+            if (response.ok) {
+                window.location.href = '../dashboard/';
+            }
+        })
+        .catch(error => console.error('Auth check failed:', error));
     }
+});
 
-    // Check token when the page loads
-    window.onload = checkToken;
-  </script>
+// Handle URL parameters for error messages
+const urlParams = new URLSearchParams(window.location.search);
+const errorDiv = document.getElementById('login-error');
+
+switch(urlParams.get('auth')) {
+    case 'failed':
+        errorDiv.textContent = 'Invalid team number or password';
+        break;
+    case 'exists':
+        document.getElementById('register-error').textContent = 'Team already registered';
+        container.classList.add("right-panel-active");
+        break;
+    case 'expired':
+        errorDiv.textContent = 'Session expired, please login again';
+        break;
+}
+</script>
 </body>
 </html>

@@ -1,7 +1,33 @@
 <?php
 require_once '../../config.php';
 
-$server = $servers[array_rand($servers)];
+try {
+    $db = new PDO(
+        "mysql:host={$mysql['host']};dbname={$mysql['database']};port={$mysql['port']}",
+        $mysql['username'],
+        $mysql['password'],
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+    );
+    
+    // Create scouting_data table if not exists
+    $db->exec("CREATE TABLE IF NOT EXISTS scouting_data (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        team_number VARCHAR(50) NOT NULL,
+        event_code VARCHAR(50) NOT NULL,
+        season_year INT NOT NULL,
+        scouting_team VARCHAR(50) NOT NULL,
+        data TEXT NOT NULL,
+        is_private BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_team_event (team_number, event_code)
+    )");
+
+} catch (PDOException $e) {
+    error_log("Connection failed: " . $e->getMessage());
+    http_response_code(500);
+    echo json_encode(['error' => 'Database error']);
+    exit;
+}
 
 header('Content-Type: application/json');
 header('Cache-Control: no-cache, no-store, must-revalidate');
@@ -16,104 +42,124 @@ if (!$token) {
     exit;
 }
 
-// Get parameters
-$teamNumber = $_GET['team'] ?? null;
-$eventCode = $_GET['event'] ?? null;
+try {
+    $db = new PDO(
+        "mysql:host={$mysql['host']};dbname={$mysql['database']};port={$mysql['port']}",
+        $mysql['username'],
+        $mysql['password'],
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+    );
 
-if (!$teamNumber || !$eventCode) {
-    http_response_code(400);
-    echo json_encode(['error' => 'Team number and event code are required']);
-    exit;
-}
+    // Validate token
+    $stmt = $db->prepare("
+        SELECT u.id, u.team_number 
+        FROM auth_tokens at
+        JOIN users u ON at.user_id = u.id
+        WHERE at.token = ?
+        AND at.created_at <= CURRENT_TIMESTAMP
+        AND at.expires_at >= CURRENT_TIMESTAMP
+        AND at.is_revoked = 0
+    ");
+    
+    $stmt->execute([$token]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-// Validate user authentication
-$authUrl = "https://$server/v2/auth/user/";
-$authHeaders = [
-    "Authorization: Bearer $apikey",
-    "Token: $token"
-];
-
-$authCh = curl_init();
-curl_setopt($authCh, CURLOPT_URL, $authUrl);
-curl_setopt($authCh, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($authCh, CURLOPT_HTTPHEADER, $authHeaders);
-
-$authResponse = curl_exec($authCh);
-$authHttpCode = curl_getinfo($authCh, CURLINFO_HTTP_CODE);
-curl_close($authCh);
-
-if ($authHttpCode !== 200) {
-    http_response_code($authHttpCode);
-    echo json_encode(['error' => 'Authentication failed']);
-    exit;
-}
-
-$authData = json_decode($authResponse, true);
-$scoutingTeam = $authData['details']['address'] ?? null;
-
-// Determine season year based on current month
-$currentMonth = (int)date('n'); // 1-12
-$currentYear = (int)date('Y');
-$seasonYear = ($currentMonth >= 9) ? $currentYear : $currentYear - 1;
-
-$dbHeaders = ["Authorization: Bearer $apikey"];
-
-// Fetch private data
-$privateDbUrl = "https://$server/v2/data/database/?db=WikiScout-$seasonYear-$eventCode&log=$scoutingTeam-private&entry=$teamNumber";
-$ch = curl_init();
-curl_setopt($ch, CURLOPT_URL, $privateDbUrl);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_HTTPHEADER, $dbHeaders);
-$privateResponse = curl_exec($ch);
-$privateHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_close($ch);
-
-// Fetch public data
-$publicDbUrl = "https://$server/v2/data/database/?db=WikiScout-$seasonYear-$eventCode&log=$teamNumber-public";
-$ch = curl_init();
-curl_setopt($ch, CURLOPT_URL, $publicDbUrl);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_HTTPHEADER, $dbHeaders);
-$publicResponse = curl_exec($ch);
-$publicHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_close($ch);
-
-// Add error checking
-if ($privateHttpCode !== 200 || $publicHttpCode !== 200) {
-    http_response_code(500);
-    echo json_encode([
-        'error' => 'Database fetch failed',
-        'private_status' => $privateHttpCode,
-        'public_status' => $publicHttpCode,
-        'private_url' => $privateDbUrl,
-        'public_url' => $publicDbUrl
-    ]);
-    exit;
-}
-
-// Read form configuration
-$formConfig = file_get_contents('../../form.dat');
-$formFields = array_map(function($line) {
-    $matches = [];
-    preg_match('/"([^"]+)"/', $line, $matches);
-    return $matches[1] ?? '';
-}, explode("\n", $formConfig));
-
-// Clean and parse responses
-function cleanResponse($response) {
-    $jsonStart = strpos($response, '{');
-    if ($jsonStart !== false) {
-        $response = substr($response, $jsonStart);
+    if (!$user) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Invalid or expired token']);
+        exit;
     }
-    return json_decode($response, true);
+
+    if ($user['team_number'] === null) {
+        http_response_code(501);
+        echo json_encode(['error' => 'No team number assigned']);
+        exit;
+    }
+
+    $requestingTeam = $user['team_number'];
+
+    // Get parameters
+    $teamNumber = $_GET['team'] ?? null;
+    $eventCode = $_GET['event'] ?? null;
+
+    if (!$teamNumber || !$eventCode) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Team number and event code are required']);
+        exit;
+    }
+
+    try {
+        // Determine season year
+        $currentMonth = (int)date('n');
+        $currentYear = (int)date('Y');
+        $seasonYear = ($currentMonth >= 9) ? $currentYear : $currentYear - 1;
+        
+        // Get private data (only the requesting team's private data)
+        $privateStmt = $db->prepare("
+            SELECT data, scouting_team
+            FROM scouting_data 
+            WHERE team_number = ? AND event_code = ? 
+            AND season_year = ? AND is_private = 1
+            AND scouting_team = ?
+        ");
+        $privateStmt->execute([$teamNumber, $eventCode, $seasonYear, $requestingTeam]);
+        $privateData = $privateStmt->fetch(PDO::FETCH_ASSOC);
+
+        // Get public data (excluding the requesting team's data)
+        $publicStmt = $db->prepare("
+            SELECT data, scouting_team
+            FROM scouting_data 
+            WHERE team_number = ? AND event_code = ? 
+            AND season_year = ? AND is_private = 0
+            AND scouting_team != ?
+            ORDER BY created_at DESC
+        ");
+        $publicStmt->execute([$teamNumber, $eventCode, $seasonYear, $requestingTeam]);
+        $publicData = $publicStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Read form configuration
+        $formConfig = file_get_contents('../../form.dat');
+        $formFields = array_map(function($line) {
+            $matches = [];
+            preg_match('/"([^"]+)"/', $line, $matches);
+            return $matches[1] ?? '';
+        }, explode("\n", $formConfig));
+
+        echo json_encode([
+            'fields' => $formFields,
+            'private_data' => [
+                'data' => explode('|', $privateData['data'] ?? ''),
+                'scouting_team' => $privateData['scouting_team'] ?? null
+            ],
+            'public_data' => array_map(function($entry) {
+                return [
+                    'data' => explode('|', $entry['data']),
+                    'scouting_team' => $entry['scouting_team']
+                ];
+            }, $publicData),
+            'debug' => [
+                'team' => $teamNumber,
+                'event' => $eventCode,
+                'season' => $seasonYear,
+                'requesting_team' => $requestingTeam,
+                'has_private' => !empty($privateData),
+                'has_public' => !empty($publicData)
+            ]
+        ]);
+
+    } catch (Exception $e) {
+        error_log("Error retrieving data: " . $e->getMessage());
+        http_response_code(500);
+        echo json_encode([
+            'error' => 'Database error',
+            'debug' => $e->getMessage()
+        ]);
+    }
+
+} catch (PDOException $e) {
+    error_log("Connection failed: " . $e->getMessage());
+    http_response_code(500);
+    echo json_encode(['error' => 'Database error']);
+    exit;
 }
-
-$privateData = cleanResponse($privateResponse);
-$publicData = cleanResponse($publicResponse);
-
-echo json_encode([
-    'fields' => $formFields,
-    'private_data' => cleanResponse($privateResponse),
-    'public_data' => cleanResponse($publicResponse)
-]);
 ?>

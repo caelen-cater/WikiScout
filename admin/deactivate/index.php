@@ -1,66 +1,34 @@
 <?php
 require_once '../../config.php';
 
-$server = $servers[array_rand($servers)];
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $input = json_decode(file_get_contents('php://input'), true);
-    $teamNumber = $input['teamNumber'];
+    try {
+        $db = new PDO(
+            "mysql:host={$mysql['host']};dbname={$mysql['database']};port={$mysql['port']}",
+            $mysql['username'],
+            $mysql['password'],
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+        );
 
-    // Check if team exists and get app password
-    $checkUserUrl = "https://" . $server . "/v2/data/database/?db=WikiScout&log=Users&entry=" . urlencode($teamNumber);
-    $checkUserOptions = [
-        "http" => [
-            "header" => "Authorization: Bearer " . $apikey
-        ]
-    ];
-    $checkUserContext = stream_context_create($checkUserOptions);
-    $checkUserResponse = file_get_contents($checkUserUrl, false, $checkUserContext);
-    $checkUserData = json_decode($checkUserResponse, true);
+        $input = json_decode(file_get_contents('php://input'), true);
+        $teamNumber = htmlspecialchars(strip_tags($input['teamNumber']));
 
-    if (isset($checkUserData['data']) && !empty($checkUserData['data'])) {
-        $appPassword = $checkUserData['data'];
+        // Simply set team_number to NULL
+        $stmt = $db->prepare("UPDATE users SET team_number = NULL WHERE team_number = ?");
+        $stmt->execute([$teamNumber]);
 
-        // Deactivate the user
-        $deactivateUrl = "https://" . $server . "/v2/auth/user/";
-        $deactivateOptions = [
-            "http" => [
-                "header" => "Authorization: Bearer " . $apikey . "\r\n" .
-                            "App: " . $appPassword . "\r\n" .
-                            "Content-Type: application/json",
-                "method" => "POST",
-                "content" => json_encode([
-                    'address' => "null"
-                ])
-            ]
-        ];
-        $deactivateContext = stream_context_create($deactivateOptions);
-        $deactivateResponse = file_get_contents($deactivateUrl, false, $deactivateContext);
-        $deactivateStatus = $http_response_header[0];
-
-        if (strpos($deactivateStatus, '200') !== false) {
-            // Remove the app password from database
-            $deleteUserUrl = "https://" . $server . "/v2/data/database/";
-            $deleteUserOptions = [
-                "http" => [
-                    "header" => "Authorization: Bearer " . $apikey,
-                    "method" => "DELETE",
-                    "content" => http_build_query([
-                        'db' => 'WikiScout',
-                        'log' => 'Users',
-                        'entry' => $teamNumber
-                    ])
-                ]
-            ];
-            $deleteUserContext = stream_context_create($deleteUserOptions);
-            file_get_contents($deleteUserUrl, false, $deleteUserContext);
-            
+        if ($stmt->rowCount() > 0) {
             http_response_code(200);
+            echo json_encode(['success' => true]);
         } else {
-            http_response_code(400);
+            http_response_code(404);
+            echo json_encode(['error' => 'Team not found']);
         }
-    } else {
-        http_response_code(404);
+
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Database error']);
+        error_log($e->getMessage());
     }
 }
 ?>

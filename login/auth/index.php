@@ -1,90 +1,174 @@
 <?php
+require_once '../../config.php';
+
+// FIRST create the database tables
+try {
+    $db = new PDO(
+        "mysql:host={$mysql['host']};dbname={$mysql['database']};port={$mysql['port']}",
+        $mysql['username'],
+        $mysql['password'],
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+    );
+    
+    // Create users table FIRST
+    $db->exec("CREATE TABLE IF NOT EXISTS users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        team_number VARCHAR(50) NOT NULL UNIQUE,
+        email VARCHAR(255) NOT NULL UNIQUE,
+        password_hash VARCHAR(255) NOT NULL,
+        first_name VARCHAR(100),
+        last_name VARCHAR(100),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_login TIMESTAMP,
+        INDEX idx_team_number (team_number)
+    )");
+
+    // THEN create auth_tokens table that depends on users
+    $db->exec("CREATE TABLE IF NOT EXISTS auth_tokens (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        token VARCHAR(255) NOT NULL UNIQUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMP NOT NULL,
+        is_revoked BOOLEAN DEFAULT FALSE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        INDEX idx_token (token)
+    )");
+
+    // Verify tables exist before proceeding
+    $tables = $db->query("SHOW TABLES LIKE 'users'")->rowCount();
+    if ($tables === 0) {
+        error_log("Failed to create users table");
+        header('Location: ../?auth=failed');
+        exit();
+    }
+
+} catch (PDOException $e) {
+    error_log("Database initialization error: " . $e->getMessage());
+    header('Location: ../?auth=failed');
+    exit();
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'GET' || empty($_POST)) {
     header('Location: ../../');
     exit();
 }
 
-$apikey = 'API_KEY';
-$api_url = 'https://us-east.cirrusapi.com/v2/auth/user/';
-
-$username = $_POST['username'];
+$email = $_POST['email'];
 $password = $_POST['password'];
-$first = isset($_POST['first']) ? $_POST['first'] : null;
-$last = isset($_POST['last']) ? $_POST['last'] : null;
+$firstName = isset($_POST['first']) ? $_POST['first'] : null;
+$lastName = isset($_POST['last']) ? $_POST['last'] : null;
 
-$headers = [
-    "Authorization: Bearer $apikey",
-    "Content-Type: application/json"
-];
+// Registration flow
+if ($firstName && $lastName) {
+    try {
+        $db->beginTransaction();
+        
+        // Check if email exists
+        $stmt = $db->prepare("SELECT id FROM users WHERE email = ?");
+        $stmt->execute([$email]);
+        if ($stmt->fetch()) {
+            $db->rollBack();
+            header('Location: ../?auth=exists');
+            exit();
+        }
 
-function handle_response($http_code, $response, $is_registration = false) {
-    if ($http_code == 200) {
-        $response_data = json_decode($response, true);
-        if (isset($response_data['token'])) {
-            $token = $response_data['token'];
-            setcookie('auth', $token, time() + (30 * 24 * 60 * 60), "/");
+        // Create new user - team_number starts as NULL until admin verifies
+        $stmt = $db->prepare("
+            INSERT INTO users (email, password_hash, first_name, last_name)
+            VALUES (?, ?, ?, ?)
+        ");
+        
+        $stmt->execute([
+            $email,
+            password_hash($password, PASSWORD_DEFAULT),
+            $firstName,
+            $lastName
+        ]);
+        
+        if ($stmt->rowCount() === 0) {
+            throw new Exception("Failed to create user");
+        }
+        
+        $userId = $db->lastInsertId();
+        
+        // Create auth token
+        $token = bin2hex(random_bytes(32));
+        $expires = date('Y-m-d H:i:s', strtotime('+30 days'));
+        
+        $stmt = $db->prepare("
+            INSERT INTO auth_tokens (user_id, token, expires_at)
+            VALUES (?, ?, ?)
+        ");
+        $stmt->execute([$userId, $token, $expires]);
+        
+        $db->commit();
+        
+        setcookie('auth', $token, time() + (30 * 24 * 60 * 60), "/", "", true, true);
+        header('Location: callback');
+        exit();
+
+    } catch (Exception $e) {
+        $db->rollBack();
+        error_log("Registration error: " . $e->getMessage());
+        header('Location: ../?auth=failed');
+        exit();
+    }
+}
+
+// Login flow
+else {
+    try {
+        $db->beginTransaction();
+        
+        $stmt = $db->prepare("
+            SELECT id, email, password_hash, team_number
+            FROM users 
+            WHERE email = ?
+        ");
+        $stmt->execute([$email]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($user && password_verify($password, $user['password_hash'])) {
+            // Revoke old tokens
+            $db->prepare("
+                UPDATE auth_tokens 
+                SET is_revoked = 1 
+                WHERE user_id = ?
+            ")->execute([$user['id']]);
+            
+            // Generate new token
+            $token = bin2hex(random_bytes(32));
+            $expires = date('Y-m-d H:i:s', strtotime('+30 days'));
+            
+            $stmt = $db->prepare("
+                INSERT INTO auth_tokens (user_id, token, expires_at)
+                VALUES (?, ?, ?)
+            ");
+            $stmt->execute([$user['id'], $token, $expires]);
+            
+            $db->prepare("
+                UPDATE users 
+                SET last_login = CURRENT_TIMESTAMP 
+                WHERE id = ?
+            ")->execute([$user['id']]);
+            
+            $db->commit();
+            
+            setcookie('auth', $token, time() + (30 * 24 * 60 * 60), "/", "", true, true);
             header('Location: callback');
             exit();
         }
-    } 
-    // If authentication fails
-    header('Location: ../?auth=failed');
-    exit();
-}
 
-if ($first && $last) {
-    $registration_headers = [
-        "Authorization: Bearer $apikey",
-        "username: $username",
-        "password: $password"
-    ];
+        $db->rollBack();
+        header('Location: ../?auth=failed');
+        exit();
 
-    $ch = curl_init($api_url);
-    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "PUT");
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $registration_headers);
-    $response = curl_exec($ch);
-    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($http_code == 200) {
-        $data = json_encode([
-            'username' => $username,
-            'password' => $password,
-            'first' => $first,
-            'last' => $last,
-            'email' => $username,
-            'generate' => false
-        ]);
-
-        $ch = curl_init($api_url);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-        $response = curl_exec($ch);
-        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        handle_response($http_code, $response, true);
-    } else {
-        handle_response($http_code, $response);
+    } catch (Exception $e) {
+        $db->rollBack();
+        error_log("Login error: " . $e->getMessage());
+        header('Location: ../?auth=failed');
+        exit();
     }
-} else {
-    $data = json_encode([
-        'username' => $username,
-        'password' => $password
-    ]);
-
-    $ch = curl_init($api_url);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-    $response = curl_exec($ch);
-    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    handle_response($http_code, $response);
 }
 ?>

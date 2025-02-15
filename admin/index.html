@@ -9,8 +9,7 @@
         <h2>Team Activation</h2>
         <div class="input-group">
             <input type="text" id="teamNumber" placeholder="Enter Team Number">
-            <input type="text" id="username" placeholder="Enter Username">
-            <input type="password" id="password" placeholder="Enter Password">
+            <input type="email" id="email" placeholder="Enter Email Address">
             <button id="activateButton" class="action-button">Activate</button>
         </div>
 
@@ -28,20 +27,5 @@
     </a>
 
     <script src="script.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            fetch('activate/', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            })
-            .then(response => {
-                if (response.status === 401) {
-                    window.location.href = '../login';
-                }
-            });
-        });
-    </script>
 </body>
 </html>

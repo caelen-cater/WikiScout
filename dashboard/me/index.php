@@ -1,8 +1,6 @@
 <?php
 require_once '../../config.php';
 
-$server = $servers[array_rand($servers)];
-
 header('Content-Type: application/json');
 header('Cache-Control: no-cache, no-store, must-revalidate');
 header('Pragma: no-cache');
@@ -11,96 +9,103 @@ header('Expires: 0');
 // Check authentication
 $token = $_COOKIE['auth'] ?? null;
 if (!$token) {
-    logError('Unauthorized', 401, __FILE__, null);
     http_response_code(401);
     echo json_encode(['error' => 'Unauthorized']);
     exit;
 }
 
-// Validate user and get team number
-$authUrl = "https://$server/v2/auth/user/";
-$authHeaders = [
-    "Authorization: Bearer $apikey",
-    "Token: $token"
-];
+try {
+    $db = new PDO(
+        "mysql:host={$mysql['host']};dbname={$mysql['database']};port={$mysql['port']}",
+        $mysql['username'],
+        $mysql['password'],
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+    );
 
-$authResponse = makeApiRequest($authUrl, $authHeaders);
-if ($authResponse['http_code'] === 401) {
-    logError('Unauthorized', 401, __FILE__, null);
-    http_response_code(401);
-    echo json_encode(['error' => 'Unauthorized']);
-    exit;
-}
-
-if ($authResponse['http_code'] !== 200) {
-    logError('Authentication failed', $authResponse['http_code'], __FILE__, null);
-    http_response_code($authResponse['http_code']);
-    echo json_encode(['error' => 'Authentication failed']);
-    exit;
-}
-
-$userData = json_decode($authResponse['response'], true);
-$userId = $userData['user']['id'] ?? null;
-$teamNumber = $userData['details']['address'] ?? null;
-
-if ($teamNumber === null || !is_numeric($teamNumber)) {
-    logError('Valid team number not set', 501, __FILE__, $userId);
-    http_response_code(501);
-    echo json_encode(['error' => 'Valid team number not set']);
-    exit;
-}
-
-// Determine season year based on current month
-$currentMonth = (int)date('n');
-$currentYear = (int)date('Y');
-$seasonYear = ($currentMonth >= 9) ? $currentYear : $currentYear - 1;
-
-// Create FIRST API auth
-$auth = base64_encode($username . ':' . $password);
-$firstHeaders = [
-    'Accept: application/json',
-    "Authorization: Basic $auth"
-];
-
-// Get team's events directly
-$eventsUrl = "https://ftc-api.firstinspires.org/v2.0/$seasonYear/events?teamNumber=$teamNumber";
-$eventsResponse = makeApiRequest($eventsUrl, $firstHeaders);
-
-if ($eventsResponse['http_code'] !== 200) {
-    logError('Failed to fetch events', $eventsResponse['http_code'], __FILE__, $userId);
-    http_response_code($eventsResponse['http_code']);
-    echo json_encode(['error' => 'Failed to fetch events']);
-    exit;
-}
-
-$eventsData = json_decode($eventsResponse['response'], true);
-$currentTime = time();
-$found = false;
-
-// Check if any of the team's events are currently active
-foreach ($eventsData['events'] as $event) {
-    $startTime = strtotime($event['dateStart']);
-    $endTime = strtotime($event['dateEnd']);
+    // Validate token directly
+    $stmt = $db->prepare("
+        SELECT u.id, u.team_number
+        FROM auth_tokens at
+        JOIN users u ON at.user_id = u.id
+        WHERE at.token = ?
+        AND at.expires_at > CURRENT_TIMESTAMP
+        AND at.is_revoked = 0
+    ");
     
-    if ($currentTime >= $startTime && $currentTime <= $endTime) {
-        echo json_encode([
-            'found' => true,
-            'event' => [
-                'code' => $event['code'],
-                'name' => $event['name'],
-                'startDate' => $event['dateStart'],
-                'endDate' => $event['dateEnd']
-            ]
-        ]);
+    $stmt->execute([$token]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$user) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Invalid or expired token']);
         exit;
     }
-}
 
-// If we get here, team isn't at any current event
-echo json_encode([
-    'found' => false,
-    'message' => 'Team not found at any current event'
-]);
+    if ($user['team_number'] === null) {
+        http_response_code(501);
+        echo json_encode(['error' => 'No team number assigned']);
+        exit;
+    }
+
+    $teamNumber = $user['team_number'];
+
+    // Determine season year based on current month
+    $currentMonth = (int)date('n');
+    $currentYear = (int)date('Y');
+    $seasonYear = ($currentMonth >= 9) ? $currentYear : $currentYear - 1;
+
+    // Create FIRST API auth
+    $auth = base64_encode($username . ':' . $password);
+    $firstHeaders = [
+        'Accept: application/json',
+        "Authorization: Basic $auth"
+    ];
+
+    // Get team's events directly
+    $eventsUrl = "https://ftc-api.firstinspires.org/v2.0/$seasonYear/events?teamNumber=$teamNumber";
+    $eventsResponse = makeApiRequest($eventsUrl, $firstHeaders);
+
+    if ($eventsResponse['http_code'] !== 200) {
+        logError('Failed to fetch events', $eventsResponse['http_code'], __FILE__, $user['id']);
+        http_response_code($eventsResponse['http_code']);
+        echo json_encode(['error' => 'Failed to fetch events']);
+        exit;
+    }
+
+    $eventsData = json_decode($eventsResponse['response'], true);
+    $currentTime = time();
+    $found = false;
+
+    // Check if any of the team's events are currently active
+    foreach ($eventsData['events'] as $event) {
+        $startTime = strtotime($event['dateStart']);
+        $endTime = strtotime($event['dateEnd']);
+        
+        if ($currentTime >= $startTime && $currentTime <= $endTime) {
+            echo json_encode([
+                'found' => true,
+                'event' => [
+                    'code' => $event['code'],
+                    'name' => $event['name'],
+                    'startDate' => $event['dateStart'],
+                    'endDate' => $event['dateEnd']
+                ]
+            ]);
+            exit;
+        }
+    }
+
+    // If we get here, team isn't at any current event
+    echo json_encode([
+        'found' => false,
+        'message' => 'Team not found at any current event'
+    ]);
+} catch (PDOException $e) {
+    http_response_code(500);
+    echo json_encode(['error' => 'Database error']);
+    error_log($e->getMessage());
+    exit;
+}
 
 function makeApiRequest($url, $headers, $body = null) {
     $ch = curl_init($url);

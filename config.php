@@ -19,4 +19,12 @@ $siteName = 'WikiScout';
 $emailAddress = 'support@chanrobotics.org';
 $teamName = 'WikiScout Team';
 $supportUrl = 'https://wikiscout.chanrobotics.org';
+
+$mysql = [
+    'host' => 'localhost',
+    'database' => 'wikiscout_db',
+    'username' => 'your_mysql_user',
+    'password' => 'your_mysql_password',
+    'port' => 3306
+];
 ?>

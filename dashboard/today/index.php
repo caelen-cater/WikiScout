@@ -1,163 +1,109 @@
 <?php
 require_once '../../config.php';
 
-$server = $servers[array_rand($servers)];
-
-function logError($message, $code, $trace, $userId, $severity) {
-    global $server, $apikey, $webhook;
-
-    $errorData = [
-        'message' => $message,
-        'code' => $code,
-        'trace' => $trace,
-        'user_id' => $userId,
-        'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
-        'agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
-        'device_info' => php_uname(),
-        'server' => $_SERVER['SERVER_NAME'] ?? 'unknown',
-        'request_url' => $_SERVER['REQUEST_URI'] ?? 'unknown',
-        'request_method' => $_SERVER['REQUEST_METHOD'] ?? 'unknown',
-        'request_headers' => json_encode(getallheaders()),
-        'request_parameters' => json_encode($_GET),
-        'request_body' => file_get_contents('php://input'),
-        'metadata' => [
-            'team_number' => $GLOBALS['teamNumber'] ?? null,
-            'season_year' => $GLOBALS['seasonYear'] ?? null
-        ],
-        'severity' => $severity,
-        'webhook_content' => "An error (:error_id) occurred with :trace by user :user_id with error ':message' and code :code at :timestamp"
-    ];
-
-    $ch = curl_init("https://$server/v2/data/error/");
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        "Authorization: Bearer $apikey",
-        'Content-Type: application/json'
-    ]);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($errorData));
-    curl_exec($ch);
-    curl_close($ch);
-
-    // Send webhook notification
-    $webhookContent = str_replace(
-        [':error_id', ':trace', ':user_id', ':message', ':code', ':timestamp'],
-        [$errorData['code'], $errorData['trace'], $errorData['user_id'], $errorData['message'], $errorData['code'], date('Y-m-d H:i:s')],
-        $errorData['webhook_content']
-    );
-    $ch = curl_init($webhook);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(['content' => $webhookContent]));
-    curl_exec($ch);
-    curl_close($ch);
-}
-
 header('Content-Type: application/json');
 header('Cache-Control: no-cache, no-store, must-revalidate');
-header('Pragma: no-cache');
-header('Expires: 0');
 
-// Check authentication
 $token = $_COOKIE['auth'] ?? null;
 if (!$token) {
-    logError('Unauthorized', 401, __FILE__ . ':' . __LINE__, null, 'high');
     http_response_code(401);
     echo json_encode(['error' => 'Unauthorized']);
     exit;
 }
 
-// Validate user and team number
-$authUrl = "https://$server/v2/auth/user/";
-$authHeaders = [
-    "Authorization: Bearer $apikey",
-    "Token: $token"
-];
+try {
+    $db = new PDO(
+        "mysql:host={$mysql['host']};dbname={$mysql['database']};port={$mysql['port']}",
+        $mysql['username'],
+        $mysql['password'],
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+    );
 
-$authCh = curl_init();
-curl_setopt($authCh, CURLOPT_URL, $authUrl);
-curl_setopt($authCh, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($authCh, CURLOPT_HTTPHEADER, $authHeaders);
-
-$authResponse = curl_exec($authCh);
-$authHttpCode = curl_getinfo($authCh, CURLINFO_HTTP_CODE);
-curl_close($authCh);
-
-if ($authHttpCode === 401) {
-    logError('Unauthorized', 401, __FILE__ . ':' . __LINE__, null, 'high');
-    http_response_code(401);
-    echo json_encode(['error' => 'Unauthorized']);
-    exit;
-}
-
-if ($authHttpCode !== 200) {
-    logError('Authentication failed', $authHttpCode, __FILE__ . ':' . __LINE__, null, 'high');
-    http_response_code($authHttpCode);
-    echo json_encode(['error' => 'Authentication failed']);
-    exit;
-}
-
-$authData = json_decode($authResponse, true);
-$userId = $authData['user']['id'] ?? null;
-$teamNumber = $authData['details']['address'] ?? null;
-
-if ($teamNumber === null) {
-    logError('Team number not set', 501, __FILE__ . ':' . __LINE__, $userId, 'medium');
-    http_response_code(501);
-    echo json_encode(['error' => 'Team number not set']);
-    exit;
-}
-
-// Determine season year based on current month
-$currentMonth = (int)date('n'); // 1-12
-$currentYear = (int)date('Y');
-$seasonYear = ($currentMonth >= 9) ? $currentYear : $currentYear - 1;
-
-// Create authorization string
-$auth = base64_encode($username . ':' . $password);
-
-// Setup FIRST API request
-$firstApiUrl = "https://ftc-api.firstinspires.org/v2.0/$seasonYear/events/";
-$headers = [
-    'Accept: application/json',
-    "Authorization: Basic $auth"
-];
-
-$ch = curl_init();
-curl_setopt($ch, CURLOPT_URL, $firstApiUrl);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-
-$response = curl_exec($ch);
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_close($ch);
-
-if ($httpCode !== 200) {
-    logError('Failed to fetch events', $httpCode, __FILE__ . ':' . __LINE__, $userId, 'high');
-    http_response_code($httpCode);
-    echo json_encode(['error' => 'Failed to fetch events']);
-    exit;
-}
-
-$data = json_decode($response, true);
-$currentTime = time();
-$currentEvents = [];
-
-// Filter for current events
-foreach ($data['events'] as $event) {
-    $startTime = strtotime($event['dateStart']);
-    $endTime = strtotime($event['dateEnd']);
+    // Validate token
+    $stmt = $db->prepare("
+        SELECT u.id, u.team_number 
+        FROM auth_tokens at
+        JOIN users u ON at.user_id = u.id
+        WHERE at.token = ?
+        AND at.created_at <= CURRENT_TIMESTAMP
+        AND at.expires_at >= CURRENT_TIMESTAMP
+        AND at.is_revoked = 0
+    ");
     
-    if ($currentTime >= $startTime && $currentTime <= $endTime) {
-        $currentEvents[] = [
-            'code' => $event['code'],
-            'name' => $event['name']
-        ];
-    }
-}
+    $stmt->execute([$token]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-echo json_encode([
-    'events' => $currentEvents,
-    'count' => count($currentEvents)
-]);
+    if (!$user) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Invalid or expired token']);
+        exit;
+    }
+
+    if ($user['team_number'] === null) {
+        http_response_code(501);
+        echo json_encode(['error' => 'No team number assigned']);
+        exit;
+    }
+
+    // Continue with existing FIRST API call code
+
+    // Determine season year based on current month
+    $currentMonth = (int)date('n'); // 1-12
+    $currentYear = (int)date('Y');
+    $seasonYear = ($currentMonth >= 9) ? $currentYear : $currentYear - 1;
+
+    // Create authorization string
+    $auth = base64_encode($username . ':' . $password);
+
+    // Setup FIRST API request
+    $firstApiUrl = "https://ftc-api.firstinspires.org/v2.0/$seasonYear/events/";
+    $headers = [
+        'Accept: application/json',
+        "Authorization: Basic $auth"
+    ];
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $firstApiUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode !== 200) {
+        logError('Failed to fetch events', $httpCode, __FILE__ . ':' . __LINE__, $user['id'], 'high');
+        http_response_code($httpCode);
+        echo json_encode(['error' => 'Failed to fetch events']);
+        exit;
+    }
+
+    $data = json_decode($response, true);
+    $currentTime = time();
+    $currentEvents = [];
+
+    // Filter for current events
+    foreach ($data['events'] as $event) {
+        $startTime = strtotime($event['dateStart']);
+        $endTime = strtotime($event['dateEnd']);
+        
+        if ($currentTime >= $startTime && $currentTime <= $endTime) {
+            $currentEvents[] = [
+                'code' => $event['code'],
+                'name' => $event['name']
+            ];
+        }
+    }
+
+    echo json_encode([
+        'events' => $currentEvents,
+        'count' => count($currentEvents)
+    ]);
+
+} catch (PDOException $e) {
+    http_response_code(500);
+    echo json_encode(['error' => 'Database error']);
+    error_log($e->getMessage());
+    exit;
+}
 ?>

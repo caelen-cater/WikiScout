@@ -1,29 +1,29 @@
 <?php
-$apikey = 'API_KEY';
-
-function sendDeleteRequest($url, $apikey, $token) {
-    $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "DELETE");
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, array(
-        'Authorization: Bearer ' . $apikey,
-        'Token: ' . $token
-    ));
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    return $httpCode;
-}
+require_once '../../config.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     if (isset($_COOKIE['auth'])) {
-        $token = $_COOKIE['auth'];
-        $url = 'https://us-east.cirrusapi.com/v2/auth/user/';
-
-        $responseCode = sendDeleteRequest($url, $apikey, $token);
-
-        if ($responseCode == 200) {
+        try {
+            $db = new PDO(
+                "mysql:host={$mysql['host']};dbname={$mysql['database']};port={$mysql['port']}",
+                $mysql['username'],
+                $mysql['password'],
+                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+            );
+            
+            // Update token to be revoked instead of deleting
+            $stmt = $db->prepare("
+                UPDATE auth_tokens 
+                SET is_revoked = 1 
+                WHERE token = ?
+            ");
+            $stmt->execute([$_COOKIE['auth']]);
+            
+            // Clear the cookie
             setcookie('auth', '', time() - 3600, '/');
+            
+        } catch (PDOException $e) {
+            error_log("Logout error: " . $e->getMessage());
         }
     }
 }

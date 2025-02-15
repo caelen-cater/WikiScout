@@ -13,14 +13,23 @@ function trackInsight(data) {
 
 document.getElementById('activateButton').addEventListener('click', function() {
     const teamNumber = document.getElementById('teamNumber').value;
-    const username = document.getElementById('username').value;
-    const password = document.getElementById('password').value;
+    const email = document.getElementById('email').value;
+
+    if (!teamNumber || !email) {
+        alert('Please fill in all fields');
+        return;
+    }
+
+    if (!email.includes('@')) {
+        alert('Please enter a valid email address');
+        return;
+    }
 
     trackInsight({
         message: 'Team activation attempt',
         method: 'POST',
         trace: '/workspaces/WikiScout/admin/activate/index.php',
-        metadata: { teamNumber, username }
+        metadata: { teamNumber, email }
     });
 
     fetch('activate/', {
@@ -28,26 +37,16 @@ document.getElementById('activateButton').addEventListener('click', function() {
         headers: {
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ teamNumber, username, password })
+        body: JSON.stringify({ teamNumber, email })
     })
     .then(response => {
-        if (response.status === 401) {
-            window.location.href = '../../login/';
-        } else if (response.ok) {
-            trackInsight({
-                message: 'Team activation success',
-                trace: '/workspaces/WikiScout/admin/activate/index.php',
-                metadata: { teamNumber }
-            });
-            alert('Activation successful');
+        if (response.ok) {
+            alert('Team activated successfully');
             window.location.reload();
+        } else if (response.status === 401) {
+            window.location.href = '../login/';
         } else {
-            trackInsight({
-                message: 'Team activation failed',
-                trace: '/workspaces/WikiScout/admin/activate/index.php',
-                metadata: { teamNumber, error: 'API error' }
-            });
-            alert('Activation failed');
+            alert('Failed to activate team');
         }
     });
 });

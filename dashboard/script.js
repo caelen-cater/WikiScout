@@ -111,6 +111,8 @@ function clickItem(item, index) {
         showDataView();
     } else if (index === 3) {
         showFormContainer();
+    } else {
+        hideOtpContainer();
     }
 }
 
@@ -130,15 +132,24 @@ function offsetMenuBorder(element, menuBorder) {
 
 }
 
+let otpRefreshInterval = null;
+
 function showOtpContainer() {
     otpContainer.classList.add('active');
     otpInfoContainer.classList.add('active');
     fetchOtpCode();
+    // Start refreshing OTP
+    otpRefreshInterval = setInterval(fetchOtpCode, 1000);
 }
 
 function hideOtpContainer() {
     otpContainer.classList.remove('active');
     otpInfoContainer.classList.remove('active');
+    // Stop refreshing OTP
+    if (otpRefreshInterval) {
+        clearInterval(otpRefreshInterval);
+        otpRefreshInterval = null;
+    }
 }
 
 if (menuItems[0].classList.contains('active')) {
@@ -150,11 +161,24 @@ async function retryFetch(url, options = {}, maxRetries = 3, delay = 1000) {
     for (let i = 0; i < maxRetries; i++) {
         try {
             const response = await fetch(url, options);
+            
+            // Immediately handle 401 and 501
+            if (response.status === 401) {
+                window.location.href = '../login';
+                throw new Error('Unauthorized - Redirecting to login');
+            }
+            if (response.status === 501) {
+                window.location.href = '../activate';
+                throw new Error('Not Implemented - Redirecting to activate');
+            }
+
+            // For 404, retry
             if (response.status === 404) {
                 console.log(`Got 404, attempt ${i + 1} of ${maxRetries}, retrying...`);
                 await new Promise(resolve => setTimeout(resolve, delay));
                 continue;
             }
+
             return response;
         } catch (error) {
             if (i === maxRetries - 1) throw error;
@@ -164,18 +188,27 @@ async function retryFetch(url, options = {}, maxRetries = 3, delay = 1000) {
     throw new Error(`Failed after ${maxRetries} retries`);
 }
 
-// Replace the existing handleApiResponse function
-function handleApiResponse(response) {
+// Replace the existing handleApiResponse function with this version
+async function handleApiResponse(response) {
+    // If response is 401, redirect to login
+    if (response.status === 401) {
+        window.location.href = '../login';
+        throw new Error('Unauthorized - Redirecting to login');
+    }
+    
+    // If response is 501, redirect to activate
     if (response.status === 501) {
         window.location.href = '../activate';
-        return Promise.reject('Redirecting to activate');
-    } else if (response.status === 401) {
-        window.location.href = '../login';
-        return Promise.reject('Redirecting to login');
-    } else if (response.status === 404) {
-        return Promise.reject('404 error');
+        throw new Error('Not Implemented - Redirecting to activate');
     }
-    return response.json();
+
+    // For empty responses or any other status code, try to parse JSON if exists
+    try {
+        const text = await response.text();
+        return text ? JSON.parse(text) : {};
+    } catch (e) {
+        return {};
+    }
 }
 
 function fetchOtpCode() {
@@ -449,15 +482,34 @@ function renderForm(elements) {
     teamSelect.style.width = '100%';
     teamSelect.innerHTML = '<option value="">Select Team</option>';
 
-    // Add change event listener to enable/disable form fields
+    // Fix: Pass teamSelect to loadExistingTeamData
     teamSelect.addEventListener('change', (e) => {
         const formFields = formContainer.querySelectorAll('input, textarea, select, button.submit-btn');
-        const shouldEnable = e.target.value !== '';
-        formFields.forEach(field => {
-            if (field !== teamSelect && field.id !== 'event-id' && field.id !== 'event-id-code') {
-                field.disabled = !shouldEnable;
-            }
-        });
+        const selectedTeam = e.target.value;
+        
+        if (selectedTeam) {
+            // Show loading spinner immediately
+            const loadingSpinner = document.createElement('div');
+            loadingSpinner.className = 'loading-spinner active';
+            formContainer.appendChild(loadingSpinner);
+
+            // Keep fields disabled
+            formFields.forEach(field => {
+                if (field !== e.target && field.id !== 'event-id' && field.id !== 'event-id-code') {
+                    field.disabled = true;
+                }
+            });
+
+            // Load existing data
+            const eventCode = document.getElementById('event-id-code').value;
+            loadExistingTeamData(selectedTeam, eventCode, formFields, e.target);
+        } else {
+            formFields.forEach(field => {
+                if (field !== e.target && field.id !== 'event-id' && field.id !== 'event-id-code') {
+                    field.disabled = true;
+                }
+            });
+        }
     });
 
     teamNumberGroup.appendChild(teamNumberLabel);
@@ -601,124 +653,124 @@ function showDataView() {
 function fetchTeamData(teamNumber, eventId) {
     if (!teamNumber || !eventId) return;
     
-    // Fetch team ranking and score in parallel
+    const container = document.getElementById('data-content');
+    container.innerHTML = '<div class="loading-spinner active"></div>';
+    
     Promise.all([
         fetch(`./rankings/?event=${eventId}`).then(handleApiResponse),
-        fetch(`./score/?team=${teamNumber}`).then(handleApiResponse)
+        fetch(`./score/?team=${teamNumber}`).then(handleApiResponse),
+        fetch(`./view/?team=${teamNumber}&event=${eventId}`).then(handleApiResponse)
     ])
-    .then(([rankingsData, scoreData]) => {
+    .then(([rankingsData, scoreData, data]) => {
         const teamRank = rankingsData.rankings.find(t => t.teamNumber == teamNumber)?.rank || 'N/A';
         const teamScore = scoreData.score || '0';
 
-        fetch(`./view/?team=${teamNumber}&event=${eventId}`)
-            .then(handleApiResponse)
-            .then(data => {
-                const container = document.getElementById('data-content');
-                container.innerHTML = '';
-                let hasContent = false;
+        container.innerHTML = '';
+        let hasContent = false;
 
-                // Display team info with score between rank and team number
-                const teamInfoContainer = document.createElement('div');
-                teamInfoContainer.className = 'team-info-container';
-                teamInfoContainer.innerHTML = `
-                    <div class="team-info">
-                        <div class="team-header">
-                            <span class="rank-badge">#${teamRank}</span>
-                            <span class="score-badge">${teamScore}</span>
-                            Team ${teamNumber}
-                        </div>
-                    </div>
-                    <button class="match-history-btn" onclick="showMatchHistory(${teamNumber}, '${eventId}')">Match History</button>
-                `;
-                container.appendChild(teamInfoContainer);
+        // Team info header
+        const teamInfoContainer = document.createElement('div');
+        teamInfoContainer.className = 'team-info-container';
+        teamInfoContainer.innerHTML = `
+            <div class="team-info">
+                <div class="team-header">
+                    <span class="rank-badge">#${teamRank}</span>
+                    <span class="score-badge">${teamScore}</span>
+                    Team ${teamNumber}
+                </div>
+            </div>
+            <button class="match-history-btn" onclick="showMatchHistory(${teamNumber}, '${eventId}')">Match History</button>
+        `;
+        container.appendChild(teamInfoContainer);
 
-                // Your team's private data section first
-                if (data.private_data?.data) {
-                    const privateSection = document.createElement('div');
-                    privateSection.className = 'data-section';
-                    privateSection.innerHTML = `<h3>Your Scouting Data</h3>`;
-                    
-                    const entryDiv = document.createElement('div');
-                    entryDiv.className = 'data-entry';
-                    
-                    const fieldValues = data.private_data.data.split('|');
-                    data.fields.forEach((field, index) => {
-                        entryDiv.innerHTML += `
-                            <div class="field-value">
-                                <span>${field}:</span>
-                                <span>${fieldValues[index] || 'N/A'}</span>
-                            </div>
-                        `;
-                    });
-                    privateSection.appendChild(entryDiv);
-                    container.appendChild(privateSection);
-                    hasContent = true;
-                }
-
-                // Other teams' data section
-                if (data.public_data?.data) {
-                    const myTeam = localStorage.getItem('myTeam');
-                    let hasPublicData = false;
-
-                    Object.entries(data.public_data.data).forEach(([teamId, teamEntries]) => {
-                        Object.entries(teamEntries).forEach(([scoutingTeam, entryData]) => {
-                            if (scoutingTeam === myTeam || teamId.split('-')[0] === myTeam) return;
-                            
-                            if (!hasPublicData && hasContent) {
-                                const divider = document.createElement('div');
-                                divider.className = 'data-divider';
-                                container.appendChild(divider);
-                                hasPublicData = true;
-                            }
-
-                            const publicSection = document.createElement('div');
-                            publicSection.className = 'data-section';
-                            publicSection.innerHTML = `<h3>Scouted by Team ${scoutingTeam}</h3>`;
-                            
-                            const entryDiv = document.createElement('div');
-                            entryDiv.className = 'data-entry';
-                            
-                            const fieldValues = entryData.split('|');
-                            data.fields.forEach((field, index) => {
-                                // Display all fields regardless of their content
-                                entryDiv.innerHTML += `
-                                    <div class="field-value">
-                                        <span>${field}:</span>
-                                        <span>${fieldValues[index] || 'N/A'}</span>
-                                    </div>
-                                `;
-                            });
-                            publicSection.appendChild(entryDiv);
-                            container.appendChild(publicSection);
-                            hasContent = true;
-                        });
-                    });
-                }
-
-                if (!hasContent) {
-                    container.innerHTML = `
-                        <div class="data-section">
-                            <div class="data-entry">
-                                <p style="text-align: center; color: #666;">No scouting data available for this team.</p>
-                            </div>
-                        </div>
-                    `;
-                }
-            })
-            .catch(error => {
-                console.error('Error fetching team data:', error);
-                const container = document.getElementById('data-content');
-                container.innerHTML = `
-                    <div class="data-section">
-                        <h3>Error</h3>
-                        <div class="data-entry">
-                            <pre style="color: red;">Failed to load team data</pre>
-                        </div>
+        // Private data section
+        if (data.private_data?.data?.length > 0) {
+            const privateSection = document.createElement('div');
+            privateSection.className = 'data-section';
+            privateSection.innerHTML = `<h3>Your Scouting Data</h3>`;
+            
+            const entryDiv = document.createElement('div');
+            entryDiv.className = 'data-entry';
+            
+            data.fields.forEach((field, index) => {
+                entryDiv.innerHTML += `
+                    <div class="field-value">
+                        <span>${field}:</span>
+                        <span>${formatFieldValue(data.private_data.data[index])}</span>
                     </div>
                 `;
             });
+            
+            privateSection.appendChild(entryDiv);
+            container.appendChild(privateSection);
+            hasContent = true;
+        }
+
+        // Public data section
+        if (data.public_data?.length > 0) {
+            if (hasContent) {
+                const divider = document.createElement('div');
+                divider.className = 'data-divider';
+                container.appendChild(divider);
+            }
+
+            const publicSection = document.createElement('div');
+            publicSection.className = 'data-section';
+            publicSection.innerHTML = '<h3>Other Teams\' Scouting Data</h3>';
+
+            data.public_data.forEach(entry => {
+                const entryDiv = document.createElement('div');
+                entryDiv.className = 'data-entry';
+                entryDiv.innerHTML = `<div class="scouting-team-header">Scouted by Team ${entry.scouting_team}</div>`;
+                
+                data.fields.forEach((field, index) => {
+                    entryDiv.innerHTML += `
+                        <div class="field-value">
+                            <span>${field}:</span>
+                            <span>${formatFieldValue(entry.data[index])}</span>
+                        </div>
+                    `;
+                });
+                
+                publicSection.appendChild(entryDiv);
+            });
+            
+            container.appendChild(publicSection);
+            hasContent = true;
+        }
+
+        if (!hasContent) {
+            container.innerHTML = `
+                <div class="data-section">
+                    <div class="data-entry">
+                        <p style="text-align: center; color: #666;">No scouting data available for this team.</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Log the data for debugging
+        console.log('Received data:', data);
     })
-    .catch(error => console.error('Error fetching team data:', error));
+    .catch(error => {
+        console.error('Error fetching team data:', error);
+        container.innerHTML = `
+            <div class="data-section">
+                <div class="data-entry">
+                    <p style="text-align: center; color: red;">Error loading team data. Please try again.</p>
+                </div>
+            </div>
+        `;
+    });
+}
+
+// Update formatFieldValue function to handle all cases
+function formatFieldValue(value) {
+    if (!value) return 'N/A';
+    if (value === 'true') return '<span class="bool-value bool-true">✓</span>';
+    if (value === 'false') return '<span class="bool-value bool-false">✕</span>';
+    if (value === 'Redacted Field') return '<span class="redacted">Redacted</span>';
+    return value;
 }
 
 function showMatchHistory(teamNumber, eventId) {
@@ -1085,3 +1137,246 @@ function clearApiCache() {
         delete pendingRequests[key];
     });
 }
+
+// Add this new function to handle data loading
+function loadExistingTeamData(teamNumber, eventCode, formFields, teamSelect) {
+    // Use existing spinner if it exists, or create new one
+    let loadingSpinner = formContainer.querySelector('.loading-spinner');
+    if (!loadingSpinner) {
+        loadingSpinner = document.createElement('div');
+        loadingSpinner.className = 'loading-spinner active';
+        formContainer.appendChild(loadingSpinner);
+    }
+
+    // Keep fields disabled during load
+    formFields.forEach(field => {
+        if (field !== teamSelect && field.id !== 'event-id' && field.id !== 'event-id-code') {
+            field.disabled = true;
+        }
+    });
+
+    console.log('Fetching data for team:', teamNumber, 'event:', eventCode); // Debug log
+
+    // Fetch existing data
+    return fetch(`./view/?team=${teamNumber}&event=${eventCode}`)
+        .then(handleApiResponse)
+        .then(data => {
+            console.log('Received data:', data); // Debug log
+            loadingSpinner.remove();
+
+            if (data.private_data?.data?.length > 0) {
+                // Get form groups in correct order, excluding event and team selectors
+                const formGroups = Array.from(formContainer.querySelectorAll('.form-group'))
+                    .filter(group => !group.querySelector('#event-id-code, #team-select'));
+                
+                // Populate each field with saved data
+                data.private_data.data.forEach((value, index) => {
+                    const formGroup = formGroups[index];
+                    if (!formGroup) return;
+
+                    if (formGroup.querySelector('input[type="checkbox"]')) {
+                        // Handle checkbox
+                        const checkbox = formGroup.querySelector('input[type="checkbox"]');
+                        checkbox.checked = value === 'true';
+                    } else if (formGroup.querySelector('input[type="range"]')) {
+                        // Handle slider and its number input together
+                        const slider = formGroup.querySelector('input[type="range"]');
+                        const numberInput = formGroup.querySelector('input[type="number"]');
+                        slider.value = value;
+                        numberInput.value = value; // Sync number input
+                        updateSliderBackground(slider);
+                    } else if (formGroup.querySelector('textarea')) {
+                        // Handle textarea
+                        formGroup.querySelector('textarea').value = value;
+                    } else if (formGroup.querySelector('input[type="text"], input[type="number"]')) {
+                        // Handle text/number inputs
+                        formGroup.querySelector('input').value = value;
+                    }
+                });
+            }
+
+            // Enable all fields after loading
+            formFields.forEach(field => {
+                if (field !== teamSelect && field.id !== 'event-id' && field.id !== 'event-id-code') {
+                    field.disabled = false;
+                }
+            });
+        })
+        .catch(error => {
+            console.error('Error loading team data:', error);
+            loadingSpinner.remove();
+            // Enable fields even if there's an error
+            formFields.forEach(field => {
+                if (field !== teamSelect && field.id !== 'event-id' && field.id !== 'event-id-code') {
+                    field.disabled = false;
+                }
+            });
+        });
+}
+
+// Update the team select change handler in renderForm
+function renderForm(elements) {
+    formContainer.innerHTML = '';
+
+    // Event ID Group
+    const eventIdGroup = document.createElement('div');
+    eventIdGroup.className = 'form-group event-group';
+    const eventIdLabel = document.createElement('label');
+    eventIdLabel.textContent = 'Event';
+    eventIdGroup.appendChild(eventIdLabel);
+    
+    const inputRow = document.createElement('div');
+    inputRow.className = 'event-input-row';
+    
+    const eventIdInput = document.createElement('input');
+    eventIdInput.type = 'hidden';
+    eventIdInput.id = 'event-id-code';
+
+    const eventDisplay = document.createElement('input');
+    eventDisplay.type = 'text';
+    eventDisplay.id = 'event-id';
+    eventDisplay.className = 'event-display';
+    eventDisplay.readOnly = true;
+    eventDisplay.style.width = '100%';
+    eventDisplay.value = 'Loading event info...';
+
+    inputRow.appendChild(eventIdInput);
+    inputRow.appendChild(eventDisplay);
+    eventIdGroup.appendChild(inputRow);
+    formContainer.appendChild(eventIdGroup);
+
+    // Team Number Group with Select
+    const teamNumberGroup = document.createElement('div');
+    teamNumberGroup.className = 'form-group';
+    const teamNumberLabel = document.createElement('label');
+    teamNumberLabel.textContent = 'Team Number';
+    
+    const teamSelect = document.createElement('select');
+    teamSelect.id = 'team-select';
+    teamSelect.required = true;
+    teamSelect.disabled = true;
+    teamSelect.style.width = '100%';
+    teamSelect.innerHTML = '<option value="">Select Team</option>';
+
+    // Add change event listener to enable/disable form fields
+    teamSelect.addEventListener('change', (e) => {
+        const formFields = formContainer.querySelectorAll('input, textarea, select, button.submit-btn');
+        const selectedTeam = e.target.value;
+        
+        if (selectedTeam) {
+            // Load existing data before enabling fields
+            const eventCode = document.getElementById('event-id-code').value;
+            loadExistingTeamData(selectedTeam, eventCode, formFields, e.target);
+        } else {
+            // If no team selected, disable all fields
+            formFields.forEach(field => {
+                if (field !== teamSelect && field.id !== 'event-id' && field.id !== 'event-id-code') {
+                    field.disabled = true;
+                }
+            });
+        }
+    });
+
+    teamNumberGroup.appendChild(teamNumberLabel);
+    teamNumberGroup.appendChild(teamSelect);
+    formContainer.appendChild(teamNumberGroup);
+
+    // Add this function to handle disabled field clicks
+    function handleDisabledFieldClick(e) {
+        if (e.target.disabled) {
+            showWarningTooltip(e.target, 'Please select a team first');
+            e.preventDefault();
+        }
+    }
+
+    // Rest of form elements
+    elements.forEach(element => {
+        const formGroup = document.createElement('div');
+        formGroup.className = 'form-group';
+
+        const label = document.createElement('label');
+        label.textContent = element.label;
+        formGroup.appendChild(label);
+
+        let input;
+        switch (element.type) {
+            case 'number':
+                input = document.createElement('input');
+                input.type = 'number';
+                input.className = 'full-width';
+                input.disabled = true; // Initially disabled
+                input.addEventListener('click', handleDisabledFieldClick);
+                formGroup.appendChild(input);
+                break;
+            case 'text':
+                if (element.options[0] === 'big') {
+                    input = document.createElement('textarea');
+                    formGroup.classList.add('big-text');
+                } else {
+                    input = document.createElement('input');
+                    input.type = 'text';
+                }
+                input.disabled = true; // Initially disabled
+                input.addEventListener('click', handleDisabledFieldClick);
+                formGroup.appendChild(input);
+                break;
+            case 'checkbox':
+                input = document.createElement('input');
+                input.type = 'checkbox';
+                input.disabled = true; // Initially disabled
+                input.addEventListener('click', handleDisabledFieldClick);
+                formGroup.appendChild(input);
+                break;
+            case 'slider':
+                input = document.createElement('input');
+                input.type = 'range';
+                input.min = element.options[0];
+                input.max = element.options[1];
+                input.step = element.options[2];
+                input.value = element.options[0];
+                input.disabled = true; // Initially disabled
+                input.addEventListener('click', handleDisabledFieldClick);
+
+                const numberInput = document.createElement('input');
+                numberInput.type = 'number';
+                numberInput.min = element.options[0];
+                numberInput.max = element.options[1];
+                numberInput.step = element.options[2];
+                numberInput.value = element.options[0];
+                numberInput.className = 'small-text';
+                numberInput.disabled = true; // Initially disabled
+                numberInput.addEventListener('click', handleDisabledFieldClick);
+
+                updateSliderBackground(input);
+
+                input.addEventListener('input', () => {
+                    numberInput.value = input.value;
+                    updateSliderBackground(input);
+                });
+
+                numberInput.addEventListener('input', () => {
+                    input.value = numberInput.value;
+                    updateSliderBackground(input);
+                });
+
+                formGroup.appendChild(input);
+                formGroup.appendChild(numberInput);
+                break;
+        }
+
+        formContainer.appendChild(formGroup);
+    });
+
+    const submitButton = document.createElement('button');
+    submitButton.className = 'submit-btn';
+    submitButton.textContent = 'Submit';
+    submitButton.disabled = true; // Initially disabled
+    submitButton.addEventListener('click', handleSubmit);
+    formContainer.appendChild(submitButton);
+}
+
+window.addEventListener('unload', () => {
+    if (otpRefreshInterval) {
+        clearInterval(otpRefreshInterval);
+    }
+});
