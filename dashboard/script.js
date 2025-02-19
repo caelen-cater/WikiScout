@@ -28,43 +28,11 @@ const pendingRequests = {};
 // Get the base dashboard URL
 const dashboardUrl = window.location.origin + '/dashboard/';
 
-function trackInsight(data) {
-    // Determine if this is an API request or page switch
-    const isApiRequest = data.trace?.startsWith('/');
-    const referrer = isApiRequest ? 
-        window.location.origin + data.trace : 
-        dashboardUrl;
-
-    const headers = new Headers({
-        'X-Action-Message': data.message,
-        'X-Metadata': JSON.stringify(data.metadata || {})
-    });
-
-    return fetch('../insight/', {
-        method: 'GET',
-        headers: headers,
-        // Add referrer header for proper tracking
-        referrer: referrer,
-        referrerPolicy: 'strict-origin-when-cross-origin'
-    }).catch(error => console.error('Error tracking insight:', error));
-}
-
 function validateSession() {
-    trackInsight({
-        message: 'Session validation',
-        method: 'GET',
-        trace: '/workspaces/WikiScout/dashboard/validate/index.php'
-    });
-
     return cachedFetch('./validate/', {
         method: 'GET'
     }).catch(error => {
         console.error('Error validating session:', error);
-        trackInsight({
-            message: 'Session validation failed',
-            code: 500,
-            metadata: { error: error.message }
-        });
     });
 }
 
@@ -83,11 +51,6 @@ window.addEventListener('load', () => {
 });
 
 function clickItem(item, index) {
-    trackInsight({
-        message: 'Menu item clicked',
-        metadata: { menuIndex: index }
-    });
-
     validateSession();
     menu.style.removeProperty("--timeOut");
     
@@ -212,12 +175,6 @@ async function handleApiResponse(response) {
 }
 
 function fetchOtpCode() {
-    trackInsight({
-        message: 'Fetching OTP code',
-        method: 'GET',
-        trace: '/workspaces/WikiScout/dashboard/auth/index.php'
-    });
-
     fetch('./auth/', {
         method: 'GET'
     })
@@ -232,12 +189,6 @@ function fetchOtpCode() {
 }
 
 deleteBtn.addEventListener('click', () => {
-    trackInsight({
-        message: 'OTP deletion requested',
-        method: 'DELETE',
-        trace: '/auth/'
-    });
-
     deleteBtn.disabled = true;
     regenerateBtn.disabled = true;
     fetch('./auth/', {
@@ -257,12 +208,6 @@ deleteBtn.addEventListener('click', () => {
 });
 
 regenerateBtn.addEventListener('click', () => {
-    trackInsight({
-        message: 'OTP regeneration requested',
-        method: 'POST',
-        trace: '/auth/'
-    });
-
     deleteBtn.disabled = true;
     regenerateBtn.disabled = true;
     fetch('./auth/', {
@@ -314,12 +259,6 @@ function hideFormContainer() {
 }
 
 function fetchFormData() {
-    trackInsight({
-        message: 'Form data requested',
-        method: 'GET',
-        trace: '/workspaces/WikiScout/dashboard/form/index.php'
-    });
-
     // First check if user is at an event
     fetch('./me/')
         .then(handleApiResponse)
@@ -805,13 +744,6 @@ function showMatchHistory(teamNumber, eventId) {
 }
 
 function handleSubmit(event) {
-    trackInsight({
-        message: 'Form submitted',
-        method: 'POST',
-        trace: '/add/',
-        body: { team_number: document.getElementById('team-select').value }
-    });
-
     event.preventDefault();
 
     const teamNumber = document.getElementById('team-select').value;
@@ -915,13 +847,6 @@ function dismissLeaderboardInstructions(button) {
 }
 
 function fetchLeaderboard(eventId) {
-    trackInsight({
-        message: 'Leaderboard requested',
-        method: 'GET',
-        trace: '/workspaces/WikiScout/dashboard/rankings/index.php',
-        parameters: { event: eventId }
-    });
-
     return cachedFetch(`./rankings/?event=${eventId}`)
         .then(data => {
             const container = document.getElementById('leaderboard-container');
@@ -1063,13 +988,6 @@ function hideStatsPopup(event) {
 }
 
 function cachedFetch(url, options = {}) {
-    trackInsight({
-        message: 'API request',
-        method: options.method || 'GET',
-        trace: url,
-        metadata: { cached: false }
-    });
-
     const cacheKey = url + (options.method || 'GET');
     
     // Determine cache category based on URL
@@ -1093,12 +1011,6 @@ function cachedFetch(url, options = {}) {
     
     // Check cache first if we have a cache duration
     if (cacheDuration && cacheCategory && apiCache[cacheCategory][cacheKey]?.timestamp > Date.now() - cacheDuration) {
-        trackInsight({
-            message: 'API request (cached)',
-            method: options.method || 'GET',
-            trace: url,
-            metadata: { cached: true }
-        });
         return Promise.resolve(apiCache[cacheCategory][cacheKey].data);
     }
 

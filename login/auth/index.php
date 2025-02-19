@@ -130,13 +130,6 @@ else {
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         
         if ($user && password_verify($password, $user['password_hash'])) {
-            // Revoke old tokens
-            $db->prepare("
-                UPDATE auth_tokens 
-                SET is_revoked = 1 
-                WHERE user_id = ?
-            ")->execute([$user['id']]);
-            
             // Generate new token
             $token = bin2hex(random_bytes(32));
             $expires = date('Y-m-d H:i:s', strtotime('+30 days'));
