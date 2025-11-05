@@ -19,7 +19,7 @@ try {
         first_name VARCHAR(100),
         last_name VARCHAR(100),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        last_login TIMESTAMP NULL DEFAULT NULL,
+        last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         INDEX idx_team_number (team_number)
     )");
 
