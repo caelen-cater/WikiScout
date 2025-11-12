@@ -19,7 +19,7 @@ try {
         first_name VARCHAR(100),
         last_name VARCHAR(100),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        last_login TIMESTAMP,
+        last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         INDEX idx_team_number (team_number)
     )");
 
@@ -29,7 +29,7 @@ try {
         user_id INT NOT NULL,
         token VARCHAR(255) NOT NULL UNIQUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        expires_at TIMESTAMP NOT NULL,
+        expires_at TIMESTAMP NULL,
         is_revoked BOOLEAN DEFAULT FALSE,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         INDEX idx_token (token)
