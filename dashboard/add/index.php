@@ -150,6 +150,11 @@ try {
         if (is_array($formConfig)) {
             $fieldIndex = 0;
             foreach ($formConfig as $field) {
+                // Skip separators and headers - they don't have data
+                if (isset($field['type']) && ($field['type'] === 'separator' || $field['type'] === 'header')) {
+                    continue;
+                }
+                
                 if (isset($field['private']) && $field['private']) {
                     $privateFieldIndexes[] = $fieldIndex;
                 }
@@ -161,12 +166,25 @@ try {
         error_log('Form configuration file not found: ' . $formConfigPath);
     }
 
-    // Process the data - split and remove event code if present
-    $dataFields = explode('|', $data);
-    if (strpos($dataFields[0], $eventId) !== false) {
-        array_shift($dataFields);
+    // Parse JSON data
+    $dataFields = json_decode($data, true);
+    
+    // Handle backward compatibility: if JSON decode fails, try pipe-separated format
+    if ($dataFields === null && json_last_error() !== JSON_ERROR_NONE) {
+        // Legacy format: pipe-separated
+        $dataFields = explode('|', $data);
+        if (strpos($dataFields[0], $eventId) !== false) {
+            array_shift($dataFields);
+        }
     }
-    $data = implode('|', $dataFields);
+    
+    // Ensure we have an array
+    if (!is_array($dataFields)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Invalid data format']);
+        exit;
+    }
+    
     $publicData = $dataFields;
 
     // Replace private fields with placeholder
@@ -190,23 +208,23 @@ try {
             VALUES (?, ?, ?, ?, ?, ?)
         ");
 
-        // Save public data
+        // Save public data as JSON
         $stmt->execute([
             $teamNumber,
             $eventCode,
             $seasonYear,
             $scoutingTeamNumber,
-            implode('|', $publicData),
+            json_encode($publicData),
             0  // is_private = false
         ]);
 
-        // Save private data
+        // Save private data as JSON
         $stmt->execute([
             $teamNumber,
             $eventCode,
             $seasonYear,
             $scoutingTeamNumber,
-            $data,
+            json_encode($dataFields),
             1  // is_private = true
         ]);
 

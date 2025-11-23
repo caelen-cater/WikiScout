@@ -157,25 +157,47 @@ try {
             $formConfig = json_decode(file_get_contents($formConfigPath), true);
             if (is_array($formConfig)) {
                 $formFields = array_map(function($field) {
+                    // Skip separators and headers - they don't have labels for data display
+                    if (isset($field['type']) && ($field['type'] === 'separator' || $field['type'] === 'header')) {
+                        return null;
+                    }
                     return $field['label'] ?? '';
                 }, $formConfig);
+                // Remove null entries (separators and headers)
+                $formFields = array_filter($formFields, function($field) {
+                    return $field !== null;
+                });
             }
         } else {
             error_log('Form configuration file not found: ' . $formConfigPath);
         }
 
+        // Parse data - handle both JSON and legacy pipe-separated format
+        $privateDataArray = [];
+        if (!empty($privateData['data'])) {
+            $decoded = json_decode($privateData['data'], true);
+            $privateDataArray = ($decoded !== null && json_last_error() === JSON_ERROR_NONE) 
+                ? $decoded 
+                : explode('|', $privateData['data']);
+        }
+        
+        $publicDataArray = array_map(function($entry) {
+            $decoded = json_decode($entry['data'], true);
+            return [
+                'data' => ($decoded !== null && json_last_error() === JSON_ERROR_NONE) 
+                    ? $decoded 
+                    : explode('|', $entry['data']),
+                'scouting_team' => $entry['scouting_team']
+            ];
+        }, $publicData);
+
         echo json_encode([
             'fields' => $formFields,
             'private_data' => [
-                'data' => explode('|', $privateData['data'] ?? ''),
+                'data' => $privateDataArray,
                 'scouting_team' => $privateData['scouting_team'] ?? null
             ],
-            'public_data' => array_map(function($entry) {
-                return [
-                    'data' => explode('|', $entry['data']),
-                    'scouting_team' => $entry['scouting_team']
-                ];
-            }, $publicData),
+            'public_data' => $publicDataArray,
             'debug' => [
                 'team' => $teamNumber,
                 'event' => $eventCode,

@@ -1,5 +1,9 @@
 [
   {
+    "type": "header",
+    "label": "Tele-OP"
+  },
+  {
     "type": "checkbox",
     "label": "Mecanum Drive Train"
   },
@@ -18,6 +22,13 @@
     "type": "options",
     "label": "Shooting Distance",
     "options": ["Near", "Far", "Both"]
+  },
+  {
+    "type": "separator"
+  },
+  {
+    "type": "header",
+    "label": "Autonomous"
   },
   {
     "type": "number",
@@ -41,6 +52,10 @@
     "label": "What autos do they have (Near, far, how many balls)",
     "big": true,
     "description": "Describe their autonomous routines in detail"
+  },
+  {
+    "type": "separator",
+    "visible": false
   },
   {
     "type": "text",

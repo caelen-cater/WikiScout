@@ -486,6 +486,26 @@ function renderForm(elements) {
 
     // Rest of form elements
     elements.forEach(element => {
+        // Handle separator
+        if (element.type === 'separator') {
+            const separator = document.createElement('div');
+            separator.className = 'form-separator';
+            if (element.visible === false) {
+                separator.classList.add('invisible');
+            }
+            formContainer.appendChild(separator);
+            return; // Skip to next element
+        }
+
+        // Handle header
+        if (element.type === 'header') {
+            const header = document.createElement('div');
+            header.className = 'form-header';
+            header.textContent = element.label;
+            formContainer.appendChild(header);
+            return; // Skip to next element
+        }
+
         const formGroup = document.createElement('div');
         formGroup.className = 'form-group';
 
@@ -805,6 +825,11 @@ function handleSubmit(event) {
     const data = [];
 
     formGroups.forEach(group => {
+        // Skip separators and headers - they don't have inputs
+        if (group.classList.contains('form-separator') || group.classList.contains('form-header')) {
+            return;
+        }
+        
         const input = group.querySelector('input, textarea, select');
         if (input && input.id !== 'team-select' && input.id !== 'event-id' && input.id !== 'event-id-code') {
             if (input.type === 'checkbox') {
@@ -818,7 +843,7 @@ function handleSubmit(event) {
         }
     });
 
-    const dataString = data.join('|');
+    const dataJson = JSON.stringify(data);
     const submitButton = event.target;
     submitButton.disabled = true;
 
@@ -830,7 +855,7 @@ function handleSubmit(event) {
         body: new URLSearchParams({
             team_number: teamNumber,
             event_id: eventId,
-            data: dataString
+            data: dataJson
         })
     })
     .then(response => {

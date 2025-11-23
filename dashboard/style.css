@@ -351,6 +351,34 @@ body{
     white-space: normal;
 }
 
+.form-header {
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: #fff;
+    margin-top: 1.5rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #555;
+    width: 100%;
+}
+
+.form-header:first-of-type {
+    margin-top: 0.5rem;
+}
+
+.form-separator {
+    height: 1px;
+    background-color: #555;
+    margin: 1rem 0;
+    width: 100%;
+}
+
+.form-separator.invisible {
+    height: 0;
+    margin: 0.5rem 0;
+    background-color: transparent;
+}
+
 .form-group input[type="text"],
 .form-group textarea,
 .form-group input[type="number"].full-width {
