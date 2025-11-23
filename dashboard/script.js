@@ -303,13 +303,34 @@ function fetchFormData() {
         });
 
     // Continue with form data fetch
-    fetch('../../form.dat')
-        .then(response => response.text())
-        .then(data => {
-            const formElements = parseFormData(data);
-            renderForm(formElements);
+    fetch('../../form.json')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
         })
-        .catch(error => console.error('Error fetching form data:', error));
+        .then(data => {
+            console.log('Form data loaded:', data);
+            if (!data || (Array.isArray(data) && data.length === 0)) {
+                console.warn('Form data is empty');
+                return;
+            }
+            const formElements = parseFormData(data);
+            console.log('Parsed form elements:', formElements);
+            if (formElements && formElements.length > 0) {
+                renderForm(formElements);
+            } else {
+                console.error('No form elements to render');
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching form data:', error);
+            // Show error message to user
+            if (formContainer) {
+                formContainer.innerHTML = '<div style="color: red; padding: 1rem;">Error loading form: ' + error.message + '</div>';
+            }
+        });
 }
 
 function fetchTeamsAtEvent(eventCode) {
@@ -336,13 +357,13 @@ function fetchTeamsAtEvent(eventCode) {
 }
 
 function parseFormData(data) {
-    const lines = data.split('\n');
-    return lines.map(line => {
-        const [type, ...rest] = line.match(/"[^"]+"|\S+/g);
-        const label = rest[0].replace(/"/g, '');
-        const options = rest.slice(1);
-        return { type, label, options };
-    });
+    // Expect JSON array format
+    if (Array.isArray(data)) {
+        return data;
+    }
+    
+    console.error('Invalid form data format - expected JSON array');
+    return [];
 }
 
 function updateSliderBackground(slider) {
@@ -472,6 +493,14 @@ function renderForm(elements) {
         label.textContent = element.label;
         formGroup.appendChild(label);
 
+        // Add description/subtext if provided
+        if (element.description) {
+            const description = document.createElement('div');
+            description.className = 'field-description';
+            description.textContent = element.description;
+            formGroup.appendChild(description);
+        }
+
         let input;
         switch (element.type) {
             case 'number':
@@ -483,7 +512,7 @@ function renderForm(elements) {
                 formGroup.appendChild(input);
                 break;
             case 'text':
-                if (element.options[0] === 'big') {
+                if (element.big || (element.options && element.options[0] === 'big')) {
                     input = document.createElement('textarea');
                     formGroup.classList.add('big-text');
                 } else {
@@ -504,19 +533,19 @@ function renderForm(elements) {
             case 'slider':
                 input = document.createElement('input');
                 input.type = 'range';
-                input.min = element.options[0];
-                input.max = element.options[1];
-                input.step = element.options[2];
-                input.value = element.options[0];
+                input.min = element.min || (element.options && element.options[0]) || 0;
+                input.max = element.max || (element.options && element.options[1]) || 100;
+                input.step = element.step || (element.options && element.options[2]) || 1;
+                input.value = input.min;
                 input.disabled = true; // Initially disabled
                 input.addEventListener('click', handleDisabledFieldClick);
 
                 const numberInput = document.createElement('input');
                 numberInput.type = 'number';
-                numberInput.min = element.options[0];
-                numberInput.max = element.options[1];
-                numberInput.step = element.options[2];
-                numberInput.value = element.options[0];
+                numberInput.min = input.min;
+                numberInput.max = input.max;
+                numberInput.step = input.step;
+                numberInput.value = input.value;
                 numberInput.className = 'small-text';
                 numberInput.disabled = true; // Initially disabled
                 numberInput.addEventListener('click', handleDisabledFieldClick);
@@ -535,6 +564,30 @@ function renderForm(elements) {
 
                 formGroup.appendChild(input);
                 formGroup.appendChild(numberInput);
+                break;
+            case 'options':
+                input = document.createElement('select');
+                input.className = 'full-width';
+                input.disabled = true; // Initially disabled
+                input.addEventListener('click', handleDisabledFieldClick);
+                
+                // Add default empty option
+                const defaultOption = document.createElement('option');
+                defaultOption.value = '';
+                defaultOption.textContent = 'Select an option...';
+                input.appendChild(defaultOption);
+                
+                // Add options from element.options array
+                if (element.options && Array.isArray(element.options)) {
+                    element.options.forEach(option => {
+                        const optionElement = document.createElement('option');
+                        optionElement.value = option;
+                        optionElement.textContent = option;
+                        input.appendChild(optionElement);
+                    });
+                }
+                
+                formGroup.appendChild(input);
                 break;
         }
 
@@ -752,10 +805,13 @@ function handleSubmit(event) {
     const data = [];
 
     formGroups.forEach(group => {
-        const input = group.querySelector('input, textarea');
-        if (input && input.id !== 'team-select' && input.id !== 'event-id') {
+        const input = group.querySelector('input, textarea, select');
+        if (input && input.id !== 'team-select' && input.id !== 'event-id' && input.id !== 'event-id-code') {
             if (input.type === 'checkbox') {
                 data.push(input.checked ? 'true' : 'false');
+            } else if (input.tagName === 'SELECT') {
+                // Handle select/options
+                data.push(input.value || '');
             } else {
                 data.push(input.value);
             }
@@ -1100,6 +1156,10 @@ function loadExistingTeamData(teamNumber, eventCode, formFields, teamSelect) {
                     } else if (formGroup.querySelector('textarea')) {
                         // Handle textarea
                         formGroup.querySelector('textarea').value = value;
+                    } else if (formGroup.querySelector('select')) {
+                        // Handle select/options
+                        const select = formGroup.querySelector('select');
+                        select.value = value || '';
                     } else if (formGroup.querySelector('input[type="text"], input[type="number"]')) {
                         // Handle text/number inputs
                         formGroup.querySelector('input').value = value;
@@ -1126,166 +1186,7 @@ function loadExistingTeamData(teamNumber, eventCode, formFields, teamSelect) {
         });
 }
 
-// Update the team select change handler in renderForm
-function renderForm(elements) {
-    formContainer.innerHTML = '';
-
-    // Event ID Group
-    const eventIdGroup = document.createElement('div');
-    eventIdGroup.className = 'form-group event-group';
-    const eventIdLabel = document.createElement('label');
-    eventIdLabel.textContent = 'Event';
-    eventIdGroup.appendChild(eventIdLabel);
-    
-    const inputRow = document.createElement('div');
-    inputRow.className = 'event-input-row';
-    
-    const eventIdInput = document.createElement('input');
-    eventIdInput.type = 'hidden';
-    eventIdInput.id = 'event-id-code';
-
-    const eventDisplay = document.createElement('input');
-    eventDisplay.type = 'text';
-    eventDisplay.id = 'event-id';
-    eventDisplay.className = 'event-display';
-    eventDisplay.readOnly = true;
-    eventDisplay.style.width = '100%';
-    eventDisplay.value = 'Loading event info...';
-
-    inputRow.appendChild(eventIdInput);
-    inputRow.appendChild(eventDisplay);
-    eventIdGroup.appendChild(inputRow);
-    formContainer.appendChild(eventIdGroup);
-
-    // Team Number Group with Select
-    const teamNumberGroup = document.createElement('div');
-    teamNumberGroup.className = 'form-group';
-    const teamNumberLabel = document.createElement('label');
-    teamNumberLabel.textContent = 'Team Number';
-    
-    const teamSelect = document.createElement('select');
-    teamSelect.id = 'team-select';
-    teamSelect.required = true;
-    teamSelect.disabled = true;
-    teamSelect.style.width = '100%';
-    teamSelect.innerHTML = '<option value="">Select Team</option>';
-
-    // Add change event listener to enable/disable form fields
-    teamSelect.addEventListener('change', (e) => {
-        const formFields = formContainer.querySelectorAll('input, textarea, select, button.submit-btn');
-        const selectedTeam = e.target.value;
-        
-        if (selectedTeam) {
-            // Load existing data before enabling fields
-            const eventCode = document.getElementById('event-id-code').value;
-            loadExistingTeamData(selectedTeam, eventCode, formFields, e.target);
-        } else {
-            // If no team selected, disable all fields
-            formFields.forEach(field => {
-                if (field !== teamSelect && field.id !== 'event-id' && field.id !== 'event-id-code') {
-                    field.disabled = true;
-                }
-            });
-        }
-    });
-
-    teamNumberGroup.appendChild(teamNumberLabel);
-    teamNumberGroup.appendChild(teamSelect);
-    formContainer.appendChild(teamNumberGroup);
-
-    // Add this function to handle disabled field clicks
-    function handleDisabledFieldClick(e) {
-        if (e.target.disabled) {
-            showWarningTooltip(e.target, 'Please select a team first');
-            e.preventDefault();
-        }
-    }
-
-    // Rest of form elements
-    elements.forEach(element => {
-        const formGroup = document.createElement('div');
-        formGroup.className = 'form-group';
-
-        const label = document.createElement('label');
-        label.textContent = element.label;
-        formGroup.appendChild(label);
-
-        let input;
-        switch (element.type) {
-            case 'number':
-                input = document.createElement('input');
-                input.type = 'number';
-                input.className = 'full-width';
-                input.disabled = true; // Initially disabled
-                input.addEventListener('click', handleDisabledFieldClick);
-                formGroup.appendChild(input);
-                break;
-            case 'text':
-                if (element.options[0] === 'big') {
-                    input = document.createElement('textarea');
-                    formGroup.classList.add('big-text');
-                } else {
-                    input = document.createElement('input');
-                    input.type = 'text';
-                }
-                input.disabled = true; // Initially disabled
-                input.addEventListener('click', handleDisabledFieldClick);
-                formGroup.appendChild(input);
-                break;
-            case 'checkbox':
-                input = document.createElement('input');
-                input.type = 'checkbox';
-                input.disabled = true; // Initially disabled
-                input.addEventListener('click', handleDisabledFieldClick);
-                formGroup.appendChild(input);
-                break;
-            case 'slider':
-                input = document.createElement('input');
-                input.type = 'range';
-                input.min = element.options[0];
-                input.max = element.options[1];
-                input.step = element.options[2];
-                input.value = element.options[0];
-                input.disabled = true; // Initially disabled
-                input.addEventListener('click', handleDisabledFieldClick);
-
-                const numberInput = document.createElement('input');
-                numberInput.type = 'number';
-                numberInput.min = element.options[0];
-                numberInput.max = element.options[1];
-                numberInput.step = element.options[2];
-                numberInput.value = element.options[0];
-                numberInput.className = 'small-text';
-                numberInput.disabled = true; // Initially disabled
-                numberInput.addEventListener('click', handleDisabledFieldClick);
-
-                updateSliderBackground(input);
-
-                input.addEventListener('input', () => {
-                    numberInput.value = input.value;
-                    updateSliderBackground(input);
-                });
-
-                numberInput.addEventListener('input', () => {
-                    input.value = numberInput.value;
-                    updateSliderBackground(input);
-                });
-
-                formGroup.appendChild(input);
-                formGroup.appendChild(numberInput);
-                break;
-        }
-
-        formContainer.appendChild(formGroup);
-    });
-
-    const submitButton = document.createElement('button');
-    submitButton.className = 'submit-btn';
-    submitButton.textContent = 'Submit';
-    submitButton.disabled = true; // Initially disabled
-    submitButton.addEventListener('click', handleSubmit);
-    formContainer.appendChild(submitButton);
-}
+// Duplicate function removed - using the one defined earlier at line 429
 
 window.addEventListener('unload', () => {
     if (otpRefreshInterval) {

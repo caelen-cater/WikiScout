@@ -149,13 +149,20 @@ try {
         $publicStmt->execute([$teamNumber, $eventCode, $seasonYear, $requestingTeam]);
         $publicData = $publicStmt->fetchAll(PDO::FETCH_ASSOC);
 
-        // Read form configuration
-        $formConfig = file_get_contents('../../form.dat');
-        $formFields = array_map(function($line) {
-            $matches = [];
-            preg_match('/"([^"]+)"/', $line, $matches);
-            return $matches[1] ?? '';
-        }, explode("\n", $formConfig));
+        // Read form configuration from JSON
+        $formConfigPath = '../../form.json';
+        $formFields = [];
+
+        if (file_exists($formConfigPath)) {
+            $formConfig = json_decode(file_get_contents($formConfigPath), true);
+            if (is_array($formConfig)) {
+                $formFields = array_map(function($field) {
+                    return $field['label'] ?? '';
+                }, $formConfig);
+            }
+        } else {
+            error_log('Form configuration file not found: ' . $formConfigPath);
+        }
 
         echo json_encode([
             'fields' => $formFields,

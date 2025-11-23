@@ -338,6 +338,19 @@ body{
     white-space: nowrap;
 }
 
+.form-group .field-description {
+    display: block;
+    margin-top: 0.25rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+    color: #b0b0b0;
+    font-style: italic;
+    line-height: 1.4;
+    margin-left: 0;
+    min-width: auto;
+    white-space: normal;
+}
+
 .form-group input[type="text"],
 .form-group textarea,
 .form-group input[type="number"].full-width {

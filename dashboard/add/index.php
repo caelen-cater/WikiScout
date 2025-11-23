@@ -140,18 +140,25 @@ try {
     $userId = $user['id'];
     $scoutingTeamNumber = $user['team_number'];
 
-    // Read form configuration
-    $formConfig = file_get_contents('../../form.dat');
-    $formFields = explode("\n", $formConfig);
+    // Read form configuration from JSON
+    $formConfigPath = '../../form.json';
+    $formFields = [];
     $privateFieldIndexes = [];
 
-    // Identify private fields
-    $fieldIndex = 0;
-    foreach ($formFields as $field) {
-        if (strpos($field, 'private') !== false) {
-            $privateFieldIndexes[] = $fieldIndex;
+    if (file_exists($formConfigPath)) {
+        $formConfig = json_decode(file_get_contents($formConfigPath), true);
+        if (is_array($formConfig)) {
+            $fieldIndex = 0;
+            foreach ($formConfig as $field) {
+                if (isset($field['private']) && $field['private']) {
+                    $privateFieldIndexes[] = $fieldIndex;
+                }
+                $formFields[] = $field['label'] ?? '';
+                $fieldIndex++;
+            }
         }
-        $fieldIndex++;
+    } else {
+        error_log('Form configuration file not found: ' . $formConfigPath);
     }
 
     // Process the data - split and remove event code if present
