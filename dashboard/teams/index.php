@@ -22,6 +22,30 @@ try {
         [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
     );
 
+    // Create users and auth_tokens tables if not exists
+    $db->exec("CREATE TABLE IF NOT EXISTS users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        team_number VARCHAR(50),
+        email VARCHAR(255) NOT NULL UNIQUE,
+        password_hash VARCHAR(255) NOT NULL,
+        first_name VARCHAR(100),
+        last_name VARCHAR(100),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_team_number (team_number)
+    )");
+
+    $db->exec("CREATE TABLE IF NOT EXISTS auth_tokens (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        token VARCHAR(255) NOT NULL UNIQUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMP NULL,
+        is_revoked BOOLEAN DEFAULT FALSE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        INDEX idx_token (token)
+    )");
+
     // Validate token
     $stmt = $db->prepare("
         SELECT u.id, u.team_number 
@@ -103,8 +127,13 @@ try {
 
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['error' => 'Database error']);
-    error_log($e->getMessage());
+    echo json_encode(['error' => 'Database error', 'details' => $e->getMessage()]);
+    error_log('PDOException in teams API: ' . $e->getMessage());
+    exit;
+} catch (Exception $e) {
+    http_response_code(500);
+    echo json_encode(['error' => 'Server error', 'details' => $e->getMessage()]);
+    error_log('Exception in teams API: ' . $e->getMessage());
     exit;
 }
 ?>

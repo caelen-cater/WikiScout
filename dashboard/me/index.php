@@ -22,6 +22,30 @@ try {
         [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
     );
 
+    // Create users and auth_tokens tables if not exists
+    $db->exec("CREATE TABLE IF NOT EXISTS users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        team_number VARCHAR(50),
+        email VARCHAR(255) NOT NULL UNIQUE,
+        password_hash VARCHAR(255) NOT NULL,
+        first_name VARCHAR(100),
+        last_name VARCHAR(100),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_team_number (team_number)
+    )");
+
+    $db->exec("CREATE TABLE IF NOT EXISTS auth_tokens (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        token VARCHAR(255) NOT NULL UNIQUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMP NULL,
+        is_revoked BOOLEAN DEFAULT FALSE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        INDEX idx_token (token)
+    )");
+
     // Validate token directly
     $stmt = $db->prepare("
         SELECT u.id, u.team_number
@@ -41,7 +65,7 @@ try {
         exit;
     }
 
-    if ($user['team_number'] === null) {
+    if ($user['team_number'] === null || $user['team_number'] === '') {
         http_response_code(501);
         echo json_encode(['error' => 'No team number assigned']);
         exit;
@@ -66,44 +90,97 @@ try {
     $eventsResponse = makeApiRequest($eventsUrl, $firstHeaders);
 
     if ($eventsResponse['http_code'] !== 200) {
-        logError('Failed to fetch events', $eventsResponse['http_code'], __FILE__, $user['id']);
+        if (function_exists('logError')) {
+            logError('Failed to fetch events', $eventsResponse['http_code'], __FILE__ . ':' . __LINE__, $user['id']);
+        }
         http_response_code($eventsResponse['http_code']);
-        echo json_encode(['error' => 'Failed to fetch events']);
+        echo json_encode(['error' => 'Failed to fetch events', 'details' => $eventsResponse['response']]);
         exit;
     }
 
     $eventsData = json_decode($eventsResponse['response'], true);
+    
+    if (json_last_error() !== JSON_ERROR_NONE || !isset($eventsData['events']) || !is_array($eventsData['events'])) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Invalid response from events API']);
+        error_log('Invalid JSON response from events API: ' . $eventsResponse['response']);
+        exit;
+    }
+
+    $currentDate = date('Y-m-d');
     $currentTime = time();
     $found = false;
 
     // Check if any of the team's events are currently active
     foreach ($eventsData['events'] as $event) {
+        if (!isset($event['dateStart']) || !isset($event['dateEnd'])) {
+            continue;
+        }
+
+        // Extract date portion (YYYY-MM-DD) from the timestamp
+        $startDate = substr($event['dateStart'], 0, 10);
+        $endDate = substr($event['dateEnd'], 0, 10);
+        
+        // Parse full timestamps for time-based comparison
         $startTime = strtotime($event['dateStart']);
         $endTime = strtotime($event['dateEnd']);
         
-        if ($currentTime >= $startTime && $currentTime <= $endTime) {
-            echo json_encode([
-                'found' => true,
-                'event' => [
-                    'code' => $event['code'],
-                    'name' => $event['name'],
-                    'startDate' => $event['dateStart'],
-                    'endDate' => $event['dateEnd']
-                ]
-            ]);
-            exit;
+        // For single-day events (same start and end date), check if current date matches
+        // For multi-day events, check if current time is within the range
+        if ($startDate === $endDate) {
+            // Single-day event: check if today's date matches
+            if ($currentDate === $startDate) {
+                $found = true;
+                echo json_encode([
+                    'found' => true,
+                    'event' => [
+                        'code' => $event['code'] ?? '',
+                        'name' => $event['name'] ?? '',
+                        'startDate' => $event['dateStart'],
+                        'endDate' => $event['dateEnd']
+                    ],
+                    'teamNumber' => $teamNumber
+                ]);
+                exit;
+            }
+        } else {
+            // Multi-day event: check if current time is within range
+            // Add 24 hours to end time to include the entire end date
+            $endTimeWithBuffer = $endTime + (24 * 60 * 60);
+            if ($currentTime >= $startTime && $currentTime <= $endTimeWithBuffer) {
+                $found = true;
+                echo json_encode([
+                    'found' => true,
+                    'event' => [
+                        'code' => $event['code'] ?? '',
+                        'name' => $event['name'] ?? '',
+                        'startDate' => $event['dateStart'],
+                        'endDate' => $event['dateEnd']
+                    ],
+                    'teamNumber' => $teamNumber
+                ]);
+                exit;
+            }
         }
     }
 
     // If we get here, team isn't at any current event
     echo json_encode([
         'found' => false,
-        'message' => 'Team not found at any current event'
+        'message' => 'Team not found at any current event',
+        'teamNumber' => $teamNumber,
+        'currentDate' => $currentDate,
+        'seasonYear' => $seasonYear
     ]);
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['error' => 'Database error']);
-    error_log($e->getMessage());
+    echo json_encode(['error' => 'Database error', 'details' => $e->getMessage()]);
+    error_log('PDOException in me API: ' . $e->getMessage());
+    exit;
+} catch (Exception $e) {
+    http_response_code(500);
+    echo json_encode(['error' => 'Server error', 'details' => $e->getMessage()]);
+    error_log('Exception in me API: ' . $e->getMessage());
     exit;
 }
 

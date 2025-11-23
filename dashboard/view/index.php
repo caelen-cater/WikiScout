@@ -1,6 +1,7 @@
 <?php
 require_once '../../config.php';
 
+// Initialize database connection and create tables
 try {
     $db = new PDO(
         "mysql:host={$mysql['host']};dbname={$mysql['database']};port={$mysql['port']}",
@@ -9,7 +10,30 @@ try {
         [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
     );
     
-    // Create scouting_data table if not exists
+    // Create all required tables
+    $db->exec("CREATE TABLE IF NOT EXISTS users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        team_number VARCHAR(50),
+        email VARCHAR(255) NOT NULL UNIQUE,
+        password_hash VARCHAR(255) NOT NULL,
+        first_name VARCHAR(100),
+        last_name VARCHAR(100),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_team_number (team_number)
+    )");
+
+    $db->exec("CREATE TABLE IF NOT EXISTS auth_tokens (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        token VARCHAR(255) NOT NULL UNIQUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMP NULL,
+        is_revoked BOOLEAN DEFAULT FALSE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        INDEX idx_token (token)
+    )");
+    
     $db->exec("CREATE TABLE IF NOT EXISTS scouting_data (
         id INT AUTO_INCREMENT PRIMARY KEY,
         team_number VARCHAR(50) NOT NULL,
@@ -25,7 +49,12 @@ try {
 } catch (PDOException $e) {
     error_log("Connection failed: " . $e->getMessage());
     http_response_code(500);
-    echo json_encode(['error' => 'Database error']);
+    echo json_encode(['error' => 'Database error', 'details' => $e->getMessage()]);
+    exit;
+} catch (Exception $e) {
+    error_log("Initialization failed: " . $e->getMessage());
+    http_response_code(500);
+    echo json_encode(['error' => 'Server error', 'details' => $e->getMessage()]);
     exit;
 }
 
@@ -43,12 +72,15 @@ if (!$token) {
 }
 
 try {
-    $db = new PDO(
-        "mysql:host={$mysql['host']};dbname={$mysql['database']};port={$mysql['port']}",
-        $mysql['username'],
-        $mysql['password'],
-        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-    );
+    // Reuse existing connection or create new one
+    if (!isset($db)) {
+        $db = new PDO(
+            "mysql:host={$mysql['host']};dbname={$mysql['database']};port={$mysql['port']}",
+            $mysql['username'],
+            $mysql['password'],
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+        );
+    }
 
     // Validate token
     $stmt = $db->prepare("
@@ -157,9 +189,14 @@ try {
     }
 
 } catch (PDOException $e) {
-    error_log("Connection failed: " . $e->getMessage());
+    error_log("PDOException in view API: " . $e->getMessage());
     http_response_code(500);
-    echo json_encode(['error' => 'Database error']);
+    echo json_encode(['error' => 'Database error', 'details' => $e->getMessage()]);
+    exit;
+} catch (Exception $e) {
+    error_log("Exception in view API: " . $e->getMessage());
+    http_response_code(500);
+    echo json_encode(['error' => 'Server error', 'details' => $e->getMessage()]);
     exit;
 }
 ?>
