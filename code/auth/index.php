@@ -20,6 +20,19 @@ try {
         [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
     );
 
+    // Create otp_codes table if not exists
+    $db->exec("CREATE TABLE IF NOT EXISTS otp_codes (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        code VARCHAR(8) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMP NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        INDEX idx_user_id (user_id),
+        INDEX idx_code (code),
+        INDEX idx_expires_at (expires_at)
+    )");
+
     // Start transaction
     $db->beginTransaction();
 
