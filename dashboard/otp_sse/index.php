@@ -48,6 +48,7 @@ if ($user['team_number'] === null) {
 $userId = $user['id'];
 
 $prevCode = "none";
+$secondsPassed = 0;
 
 while (true) {
   // Get user's active OTP
@@ -75,6 +76,8 @@ while (true) {
   flush();
 
   if (connection_aborted()) break;
+  if ($secondsPassed > 60) break;
 
+  $secondsPassed++;
   sleep(1);
 }
