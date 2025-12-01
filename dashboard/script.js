@@ -96,22 +96,31 @@ function offsetMenuBorder(element, menuBorder) {
 }
 
 let otpRefreshInterval = null;
+let otpEventSource = null;
+
+function listenForOTPs() {
+  if (otpEventSource) return;
+  otpEventSource = new EventSource("./otp_sse/");
+  otpEventSource.addEventListener("otp_update", ({ data }) => {
+    const otpCode = data.padStart(8, "-");
+    otpInputs.forEach((input, index) => {
+      input.value = otpCode[index] || "-";
+    });
+  });
+}
 
 function showOtpContainer() {
     otpContainer.classList.add('active');
     otpInfoContainer.classList.add('active');
-    fetchOtpCode();
-    // Start refreshing OTP
-    otpRefreshInterval = setInterval(fetchOtpCode, 1000);
+    listenForOTPs();
 }
 
 function hideOtpContainer() {
     otpContainer.classList.remove('active');
     otpInfoContainer.classList.remove('active');
-    // Stop refreshing OTP
-    if (otpRefreshInterval) {
-        clearInterval(otpRefreshInterval);
-        otpRefreshInterval = null;
+    if (otpEventSource) {
+        otpEventSource.close();
+        otpEventSource  = null;
     }
 }
 
@@ -174,20 +183,6 @@ async function handleApiResponse(response) {
     }
 }
 
-function fetchOtpCode() {
-    fetch('./auth/', {
-        method: 'GET'
-    })
-    .then(handleApiResponse)
-    .then(data => {
-        const otpCode = data.code.toString().padStart(8, '0');
-        otpInputs.forEach((input, index) => {
-            input.value = otpCode[index] || '';
-        });
-    })
-    .catch(error => console.error('Error fetching OTP code:', error));
-}
-
 deleteBtn.addEventListener('click', () => {
     deleteBtn.disabled = true;
     regenerateBtn.disabled = true;
@@ -195,11 +190,6 @@ deleteBtn.addEventListener('click', () => {
         method: 'DELETE'
     })
     .then(handleApiResponse)
-    .then(data => {
-        if (data.message === 'OTP invalidated') {
-            fetchOtpCode();
-        }
-    })
     .catch(error => console.error('Error deleting OTP code:', error))
     .finally(() => {
         deleteBtn.disabled = false;
@@ -214,12 +204,6 @@ regenerateBtn.addEventListener('click', () => {
         method: 'POST'
     })
     .then(handleApiResponse)
-    .then(data => {
-        const otpCode = data.code.toString().padStart(8, '0');
-        otpInputs.forEach((input, index) => {
-            input.value = otpCode[index] || '';
-        });
-    })
     .catch(error => console.error('Error regenerating OTP code:', error))
     .finally(() => {
         deleteBtn.disabled = false;
@@ -230,12 +214,9 @@ regenerateBtn.addEventListener('click', () => {
 offsetMenuBorder(activeItem, menuBorder);
 
 menuItems.forEach((item, index) => {
-
     item.addEventListener("click", () => {
         clickItem(item, index);
-        if (index === 0) {
-            fetchOtpCode();
-        } else if (index === 3) {
+        if (index === 3) {
             showFormContainer();
         } else {
             hideFormContainer();
@@ -1210,11 +1191,3 @@ function loadExistingTeamData(teamNumber, eventCode, formFields, teamSelect) {
             });
         });
 }
-
-// Duplicate function removed - using the one defined earlier at line 429
-
-window.addEventListener('unload', () => {
-    if (otpRefreshInterval) {
-        clearInterval(otpRefreshInterval);
-    }
-});
