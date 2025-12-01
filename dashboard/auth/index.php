@@ -25,7 +25,7 @@ try {
         user_id INT NOT NULL,
         code VARCHAR(8) NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        expires_at TIMESTAMP NOT NULL,
+        expires_at TIMESTAMP NULL DEFAULT NULL,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         INDEX idx_user_id (user_id),
         INDEX idx_code (code),
