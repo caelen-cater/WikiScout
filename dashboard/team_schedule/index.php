@@ -70,6 +70,8 @@ try {
     exit;
   }
 
+  $teamNumber = $user['team_number'];
+
   // Get event code from query parameters
   $eventCode = $_GET['event'] ?? null;
   if (!$eventCode) {
@@ -85,7 +87,7 @@ try {
   $seasonYear = ($currentMonth >= 9) ? $currentYear : $currentYear - 1;
 
   // Setup FIRST API request for schedule
-  $scheduleUrl = "https://ftc-api.firstinspires.org/v2.0/$seasonYear/schedule/$eventCode/qual/hybrid";
+  $scheduleUrl = "https://ftc-api.firstinspires.org/v2.0/$seasonYear/schedule/$eventCode?teamNumber=$teamNumber";
   $auth = base64_encode($username . ':' . $password);
   $headers = [
     'Accept: application/json',
