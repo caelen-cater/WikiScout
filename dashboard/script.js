@@ -20,7 +20,9 @@ const apiCache = {
     teams: {},
     validate: {},
     today: {},
-    auth: {}
+    auth: {},
+    team_schedule: {},
+    event_schedule: {}
 };
 
 const pendingRequests = {};
@@ -1060,12 +1062,16 @@ function cachedFetch(url, options = {}) {
     else if (url.includes('/validate/')) cacheCategory = 'validate';
     else if (url.includes('/today/')) cacheCategory = 'today';
     else if (url.includes('/auth/')) cacheCategory = 'auth';
+    else if (url.includes('/event_schedule/')) cacheCategory = 'event_schedule';
+    else if (url.includes('/team_schedule/')) cacheCategory = 'team_schedule';
 
     // Different cache durations for different endpoints
     const cacheDuration = {
         matches: 300000, // 5 minutes
         rankings: 300000, // 5 minutes
         teams: 300000, // 5 minutes
+        event_schedule: 300000, // 5 minutes
+        team_schedule: 300000, // 5 minutes
         validate: 30000, // 30 seconds
         today: 3600000, // 1 hour
         auth: 0 // No caching for auth
