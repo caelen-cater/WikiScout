@@ -156,17 +156,17 @@ try {
         if (file_exists($formConfigPath)) {
             $formConfig = json_decode(file_get_contents($formConfigPath), true);
             if (is_array($formConfig)) {
-                $formFields = array_map(function($field) {
+                // Filter out separators and headers, keep only data fields
+                $formFields = [];
+                foreach ($formConfig as $field) {
                     // Skip separators and headers - they don't have labels for data display
                     if (isset($field['type']) && ($field['type'] === 'separator' || $field['type'] === 'header')) {
-                        return null;
+                        continue;
                     }
-                    return $field['label'] ?? '';
-                }, $formConfig);
-                // Remove null entries (separators and headers)
-                $formFields = array_filter($formFields, function($field) {
-                    return $field !== null;
-                });
+                    $formFields[] = $field['label'] ?? '';
+                }
+                // Ensure it's a sequential array (not an object with numeric keys)
+                $formFields = array_values($formFields);
             }
         } else {
             error_log('Form configuration file not found: ' . $formConfigPath);
@@ -175,18 +175,32 @@ try {
         // Parse data - handle both JSON and legacy pipe-separated format
         $privateDataArray = [];
         if (!empty($privateData['data'])) {
+            // Reset JSON error state
+            json_decode('{}');
             $decoded = json_decode($privateData['data'], true);
-            $privateDataArray = ($decoded !== null && json_last_error() === JSON_ERROR_NONE) 
-                ? $decoded 
-                : explode('|', $privateData['data']);
+            // Check if decode was successful (not null and no JSON error)
+            if ($decoded !== null && json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                $privateDataArray = $decoded;
+            } else {
+                // Fallback to legacy pipe-separated format
+                $privateDataArray = explode('|', $privateData['data']);
+            }
         }
         
         $publicDataArray = array_map(function($entry) {
+            // Reset JSON error state
+            json_decode('{}');
             $decoded = json_decode($entry['data'], true);
+            // Check if decode was successful (not null and no JSON error)
+            if ($decoded !== null && json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                $dataArray = $decoded;
+            } else {
+                // Fallback to legacy pipe-separated format
+                $dataArray = explode('|', $entry['data']);
+            }
+            
             return [
-                'data' => ($decoded !== null && json_last_error() === JSON_ERROR_NONE) 
-                    ? $decoded 
-                    : explode('|', $entry['data']),
+                'data' => $dataArray,
                 'scouting_team' => $entry['scouting_team']
             ];
         }, $publicData);
