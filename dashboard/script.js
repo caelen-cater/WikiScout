@@ -704,13 +704,18 @@ function fetchTeamData(teamNumber, eventId) {
             const entryDiv = document.createElement('div');
             entryDiv.className = 'data-entry';
             
-            data.fields.forEach((field, index) => {
-                entryDiv.innerHTML += `
-                    <div class="field-value">
-                        <span>${field}:</span>
-                        <span>${formatFieldValue(data.private_data.data[index])}</span>
-                    </div>
-                `;
+            // Ensure fields is an array
+            const fieldsArray = Array.isArray(data.fields) ? data.fields : Object.values(data.fields || {});
+            
+            fieldsArray.forEach((field, index) => {
+                if (data.private_data.data[index] !== undefined) {
+                    entryDiv.innerHTML += `
+                        <div class="field-value">
+                            <span>${field}:</span>
+                            <span>${formatFieldValue(data.private_data.data[index])}</span>
+                        </div>
+                    `;
+                }
             });
             
             privateSection.appendChild(entryDiv);
@@ -735,13 +740,18 @@ function fetchTeamData(teamNumber, eventId) {
                 entryDiv.className = 'data-entry';
                 entryDiv.innerHTML = `<div class="scouting-team-header">Scouted by Team ${entry.scouting_team}</div>`;
                 
-                data.fields.forEach((field, index) => {
-                    entryDiv.innerHTML += `
-                        <div class="field-value">
-                            <span>${field}:</span>
-                            <span>${formatFieldValue(entry.data[index])}</span>
-                        </div>
-                    `;
+                // Ensure fields is an array
+                const fieldsArray = Array.isArray(data.fields) ? data.fields : Object.values(data.fields || {});
+                
+                fieldsArray.forEach((field, index) => {
+                    if (entry.data[index] !== undefined) {
+                        entryDiv.innerHTML += `
+                            <div class="field-value">
+                                <span>${field}:</span>
+                                <span>${formatFieldValue(entry.data[index])}</span>
+                            </div>
+                        `;
+                    }
                 });
                 
                 publicSection.appendChild(entryDiv);
@@ -766,10 +776,12 @@ function fetchTeamData(teamNumber, eventId) {
     })
     .catch(error => {
         console.error('Error fetching team data:', error);
+        console.error('Error details:', error.message, error.stack);
         container.innerHTML = `
             <div class="data-section">
                 <div class="data-entry">
                     <p style="text-align: center; color: red;">Error loading team data. Please try again.</p>
+                    <p style="text-align: center; color: #999; font-size: 0.875rem;">${error.message || 'Unknown error'}</p>
                 </div>
             </div>
         `;
